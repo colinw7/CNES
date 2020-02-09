@@ -1,0 +1,19 @@
+Specs:
+
+    Processor: 6508 8-bit (using a custom Motorola 6502 class)
+    Processor speed: 1.79 Mhz
+    Resolution: 256x224 (ntsc) or 256x239 (pal)
+    Colors available: 52
+    Max Colors on screen: 16, 24 or 25.
+    Max sprites: 64
+    Max sprites per line: 8
+    Sprite size: 8x8 or 8x16
+    Picture Scroll: 2 h.v
+    RAM: 16 Kbit (2kb)
+    Video RAM: 16 Kbit (2kb)
+    Min/Max cart size: 192 Kbit - 4 Mbit
+    Sound: PSG sound, 5 channels
+    2 square wave
+    1 triangle wave
+    1 noise
+    1 PCM
