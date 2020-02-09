@@ -13,8 +13,10 @@ class PPU {
 
   virtual ~PPU();
 
-  uchar getByte(ushort addr) const;
+  bool isDebug() const { return debug_; }
+  void setDebug(bool b) { debug_ = b; }
 
+  uchar getByte(ushort addr) const;
   void setByte(ushort addr, uchar c);
 
   bool isVBlank() const { return vblank_; }
@@ -50,7 +52,11 @@ class PPU {
   static const int s_numPixels     { 341 };
   static const int s_visiblePixels { 256 };
 
+  static const int s_leftMargin  = (s_numPixels - s_visiblePixels)/2;
+  static const int s_rightMargin = s_numPixels - s_visiblePixels - s_leftMargin;
+
   Machine* machine_   { nullptr };
+  bool     debug_     { false };
   uchar*   mem_       { nullptr }; // VRAM
   int      lineNum_   { 0 };
   bool     vblank_    { false };

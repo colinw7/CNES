@@ -55,7 +55,9 @@ class QPPU : public QWidget, public PPU {
   QTimer*    timer_       { nullptr };
   QImage*    image_       { nullptr };
   QPainter*  ipainter_    { nullptr };
-  int        margin_      { 4 };
+  int        iw_          { 0 };
+  int        ih_          { 0 };
+  int        margin_      { 0 };
   int        scale_       { 1 };
   bool       updateImage_ { true };
   int        lineNum_     { 0 };

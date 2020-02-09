@@ -59,7 +59,7 @@ getByte(ushort addr) const
         ppu->setVBlank   (false);
       }
 
-      if (! in_ppu_ && ! isDebugger())
+      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
         std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
       return c;
@@ -68,7 +68,7 @@ getByte(ushort addr) const
     else if (addr == 0x2004) {
       uchar c = spriteMem_[spriteAddr_++];
 
-      if (! in_ppu_ && ! isDebugger())
+      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
         std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
       return c;
@@ -77,21 +77,21 @@ getByte(ushort addr) const
     else if (addr == 0x2007) {
       uchar c = ppu->getByte(ppuAddr_++);
 
-      if (! in_ppu_ && ! isDebugger())
+      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
         std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
       return c;
     }
     // Joystick 1 + Strobe
     else if (addr == 0x4016) {
-      uchar c = 0x40; // TODO
+      uchar c = 0x40;
 
       if (ppu->isKey1(keyNum1_))
         c |= 0x01;
 
       keyNum1_ = ((keyNum1_ + 1) & 0x07);
 
-      if (! in_ppu_ && ! isDebugger())
+      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
         std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
       return c;
@@ -105,7 +105,7 @@ getByte(ushort addr) const
 
       keyNum2_ = ((keyNum2_ + 1) & 0x07);
 
-      if (! in_ppu_ && ! isDebugger())
+      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
         std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
       return c;
@@ -113,7 +113,7 @@ getByte(ushort addr) const
     else {
       uchar c = C6502::getByte(addr);
 
-      if (! in_ppu_ && ! isDebugger())
+      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
         std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
       return c;
@@ -176,7 +176,7 @@ setByte(ushort addr, uchar c)
   else if (addr >= 0x2000 && addr <= 0x4FFF) {
     auto *ppu = machine_->getPPU();
 
-    if (! in_ppu_ && ! isDebugger())
+    if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
       std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
 
     // PPU Control Register 1
@@ -193,7 +193,7 @@ setByte(ushort addr, uchar c)
     else if (addr == 0x2001) {
       imageMask_     = (c & 0x02); // TODO
       spriteMask_    = (c & 0x04); // TODO
-      screenSwitch_  = (c & 0x08); // TODO
+      screenVisible_ = (c & 0x08);
       spritesSwitch_ = (c & 0x10); // TODO
     }
     // PPU Status Register

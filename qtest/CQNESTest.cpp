@@ -53,7 +53,16 @@ main(int argc, char **argv)
   machine->getQPPU ()->show();
   machine->getQCart()->show();
 
-  machine->getCPU()->resetSystem();
+  auto cpu = machine->getCPU();
 
-  return app.exec();
+  cpu->resetSystem();
+
+  while (true) {
+    if (! cpu->isHalt())
+      cpu->step();
+
+    qApp->processEvents();
+  }
+
+  return 0;
 }

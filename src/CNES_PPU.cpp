@@ -97,7 +97,7 @@ drawNameTable()
 {
   auto *cpu = machine_->getCPU();
 
-  ushort nameTableAddr = cpu->nameTableAddr() + 16; // TODO: mirroring
+  ushort nameTableAddr = cpu->nameTableAddr(); // TODO: mirroring
 
   //---
 
@@ -120,7 +120,7 @@ drawNameTable()
 
       int iax = ix/2;
 
-      uchar c = cpu->ppuGetByte(nameTableAddr); // tile number
+      uchar c = getByte(nameTableAddr); // tile number
 
       uchar ac = getByte(0x3F00 + iay*16 + iax);
 
@@ -159,24 +159,21 @@ drawLine(int y)
   else if (lineNum_ < s_vsyncLines + s_vblank1Lines + s_visibleLines) {
     vblank_ = false;
 
-    int xl = (s_numPixels - s_visiblePixels)/2;
-    int xr = s_numPixels - s_visiblePixels - xl;
-
     int y1 = lineNum_ - s_vsyncLines - s_vblank1Lines;
     int iy = y1/32;
 
     int x = 0;
 
     // hblank 1
-    for (int x1 = 0; x1 < xl; ++x1)
+    for (int x1 = 0; x1 < s_leftMargin; ++x1)
       ++x;
 
     auto *cpu = machine_->getCPU();
 
-    ushort nameTableAddr = cpu->nameTableAddr() + iy*32 + 16;
+    ushort nameTableAddr = cpu->nameTableAddr() + iy*32;
 
     for (int ix = 0; ix < 32; ++ix, x += 8, ++nameTableAddr) {
-      uchar c = cpu->ppuGetByte(nameTableAddr); // tile number
+      uchar c = getByte(nameTableAddr); // tile number
 
       uchar ac1 = 0;
 
@@ -200,7 +197,7 @@ drawLine(int y)
     }
 
     // hblank 2
-    for (int x1 = 0; x1 < xr; ++x1)
+    for (int x1 = 0; x1 < s_rightMargin; ++x1)
       ++x;
   }
   // vblank 2
@@ -212,8 +209,10 @@ drawLine(int y)
 
       auto *cpu = machine_->getCPU();
 
-      if (cpu->isBlankInterrupt())
-        cpu->resetNMI();
+      if (cpu->isBlankInterrupt()) {
+        if (! cpu->isHalt())
+          cpu->resetNMI();
+      }
     }
   }
 }
@@ -231,14 +230,24 @@ void
 PPU::
 drawCharLine(int x, int y, uchar c, uchar /*ac*/)
 {
-  auto *cart = machine_->getCart();
-
   int iby = (y & 0x07);
   int y1  = y - iby;
 
   y1 += s_vsyncLines + s_vblank1Lines;
 
-  cart->drawPPUCharLine(0, x, y1, c, iby);
+  auto *cpu = machine_->getCPU();
+
+  if (cpu->isScreenVisible()) {
+    auto *cart = machine_->getCart();
+
+    cart->drawPPUCharLine(0, x, y1, c, iby);
+  }
+  else {
+    setColor(0);
+
+    for (int ibx = 0; ibx < 8; ++ibx)
+      drawPixel(x + ibx, y + iby);
+  }
 }
 
 }

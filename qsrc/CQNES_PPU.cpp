@@ -78,13 +78,16 @@ updateImage()
     delete image_;
 
     // Screen: 32 x 32 (plus margins)
-    int xm = scale()*margin();
-    int ym = scale()*margin();
+    int xm = margin();
+    int ym = margin();
 
-    int w = scale()*s_numLines;
-    int h = scale()*s_numPixels;
+    int w = scale()*s_numPixels;
+    int h = scale()*s_numLines;
 
-    image_ = new QImage(w + 2*xm, h + 2*ym, QImage::Format_ARGB32);
+    iw_ = w + 2*xm;
+    ih_ = h + 2*ym;
+
+    image_ = new QImage(iw_, ih_, QImage::Format_ARGB32);
 
     image_->fill(0);
 
@@ -113,6 +116,21 @@ paintEvent(QPaintEvent *)
   if (image_)
     painter.drawImage(0, 0, *image_);
 
+  //---
+
+  // regions
+  painter.setPen(QColor(128,128,128));
+
+  int x = s_leftMargin   *scale();
+  int w = s_visiblePixels*scale();
+  int y = (s_vsyncLines + s_vblank1Lines)*scale();
+  int h = s_visibleLines*scale();
+
+  painter.drawRect(QRect(x, y, w, h));
+
+  //---
+
+  // scan line
   painter.setPen(QColor(0,255,0));
 
   int py = lineNum_*scale();
@@ -138,12 +156,22 @@ bool
 QPPU::
 isKey1(int n)
 {
-  if (n == 0) {
-    auto p = keyPressed_.find(Qt::Key_A);
+  Qt::Key key;
 
-    if (p != keyPressed_.end())
-      return (*p).second;
-  }
+  if      (n == 0) key = Qt::Key_A;
+  else if (n == 1) key = Qt::Key_B;
+  else if (n == 2) key = Qt::Key_Insert; // SELECT
+  else if (n == 3) key = Qt::Key_Delete; // START
+  else if (n == 4) key = Qt::Key_Up;
+  else if (n == 5) key = Qt::Key_Down;
+  else if (n == 6) key = Qt::Key_Left;
+  else if (n == 7) key = Qt::Key_Right;
+  else             return false;
+
+  auto p = keyPressed_.find(key);
+
+  if (p != keyPressed_.end())
+    return (*p).second;
 
   return false;
 }
@@ -170,8 +198,8 @@ void
 QPPU::
 drawPixel(int x, int y)
 {
-  int x1 = (x + margin())*scale();
-  int y1 = (y + margin())*scale();
+  int x1 = x*scale() + margin();
+  int y1 = y*scale() + margin();
 
   for (int isy = 0; isy < scale(); ++isy) {
     for (int isx = 0; isx < scale(); ++isx) {
@@ -184,13 +212,9 @@ QSize
 QPPU::
 sizeHint() const
 {
-  int xm = scale()*margin();
-  int ym = scale()*margin();
+  const_cast<QPPU *>(this)->updateImage();
 
-  int w = scale()*s_numLines;
-  int h = scale()*s_numPixels;
-
-  return QSize(w + 2*xm, h + 2*ym);
+  return QSize(iw_, ih_);
 }
 
 }

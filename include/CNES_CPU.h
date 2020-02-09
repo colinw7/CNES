@@ -33,6 +33,8 @@ class CPU : public C6502 {
 
   ushort screenPatternAddr() const { return screenPatternAddr_; }
 
+  bool isScreenVisible() const { return screenVisible_; }
+
  private:
   Machine*       machine_            { nullptr };
   bool           debug_              { false };
@@ -46,7 +48,7 @@ class CPU : public C6502 {
   bool           blankInterrupt_     { false };
   bool           imageMask_          { false };
   bool           spriteMask_         { false };
-  bool           screenSwitch_       { false };
+  bool           screenVisible_      { false };
   bool           spritesSwitch_      { false };
   uchar          scrollXY_[2];
   uchar          scrollId_           { 0 };
