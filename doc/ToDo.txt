@@ -1,0 +1,1 @@
+ . sprite next line after. Skip offscreen

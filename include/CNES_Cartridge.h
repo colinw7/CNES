@@ -15,10 +15,29 @@ class Cartridge {
 
   virtual ~Cartridge() { }
 
+  bool isDebugRead() const { return debugRead_; }
+  void setDebugRead(bool b) { debugRead_ = b; }
+
+  bool isDebugWrite() const { return debugWrite_; }
+  void setDebugWrite(bool b) { debugWrite_ = b; }
+
   bool load(const std::string &filename);
 
-  bool getROMByte(ushort addr, uchar &c) const;
+  ushort prgSize() const { return prgSize_; }
+  ushort chrSize() const { return chrSize_; }
+
+  bool isMirroring() const { return mirroring_; }
+
+  uchar mapper() const { return mapper_; }
+
+  ushort prgRamSize() const { return prgRamSize_; }
+
+  bool getLowerROMByte(ushort addr, uchar &c) const;
+  bool getUpperROMByte(ushort addr, uchar &c) const;
+
   bool setROMByte(ushort addr, uchar c);
+
+  bool getVRAMByte(ushort addr, uchar &c) const;
 
   virtual void updateState() { }
 
@@ -28,8 +47,11 @@ class Cartridge {
   void drawTile(int it);
   void drawTileChar(int it, int ic, int x, int y);
 
-  void drawPPUChar(int it, int x, int y, uchar c);
-  void drawPPUCharLine(int it, int x, int y, uchar c, int iby);
+//void drawPPUChar(int x, int y, uchar c);
+//void drawPPUCharLine(int x, int y, uchar c, int iby, uchar ac);
+
+//void drawSpriteChar(int x, int y, uchar c, bool doubleHeight);
+//void drawSpriteCharLine(int x, int y, uchar c, int iby, uchar ac);
 
   virtual void setColor(uchar /*c*/) { }
   virtual void drawPixel(int /*x*/, int /*y*/) { }
@@ -42,6 +64,9 @@ class Cartridge {
 
   Machine *machine_ { nullptr };
 
+  bool debugRead_  { false };
+  bool debugWrite_ { false };
+
   bool  mirroring_    { false };
   bool  batteryRAM_   { false };
   bool  trainer_      { false };
@@ -53,16 +78,21 @@ class Cartridge {
 
   uchar mapper_ { 0 };
 
-  ushort prgRamSize_ { 0 };
+  uchar tvType_ { 0 };
 
-  uchar tvType_       { 0 };
-  bool  hasPrgRam_    { false };
+  bool   hasPrgRam_  { false };
+  uchar  prgCount_   { 0 };
+  ushort prgRamSize_ { 0 };
+  Data   prgRamData_;
+
   bool  busConflicts_ { false };
 
-  ushort prgSize_ { 0 };
+  uchar  romCount_ { 0 };
+  ushort prgSize_  { 0 };
   Data   prgRomData_;
 
-  ushort chrSize_ { 0 };
+  uchar  chrCount_ { 0 };
+  ushort chrSize_  { 0 };
   Data   chrRomData_;
 
   Data trainerData_;
@@ -70,9 +100,29 @@ class Cartridge {
   Data playChoiceData_;
   Data playExtraData_;
 
-  bool resetMapper_;
+  struct Mapper1Data {
+    bool resetMapper { false };
 
-  uchar register_[4];
+    uchar regData[4];
+
+    uchar regBit   { 0 };
+    uchar regValue { 0 };
+
+    uchar mirror    { 0 };
+    uchar romMode   { 0 };
+    uchar vromMode  { 0 };
+    uchar vromBank0 { 0 };
+    uchar vromBank1 { 0 };
+    uchar romPage   { 0 };
+    bool  ramEnable { false };
+  };
+
+  struct Mapper2Data {
+    uchar bank { 0 };
+  };
+
+  Mapper1Data mapper1Data_;
+  Mapper2Data mapper2Data_;
 
   mutable int currentTile_;
 };

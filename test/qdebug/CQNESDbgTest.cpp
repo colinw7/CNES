@@ -41,7 +41,7 @@ main(int argc, char **argv)
   machine->init();
 
   if (debug)
-    machine->setDebug(true);
+    machine->setDebugWrite(true);
 
   auto file = machine->getCart();
 

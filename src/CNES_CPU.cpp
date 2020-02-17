@@ -10,6 +10,7 @@ CPU::
 CPU(Machine *machine) :
  C6502(), machine_(machine)
 {
+  setUnsupported(true);
 }
 
 CPU::
@@ -17,6 +18,7 @@ CPU::
 {
 }
 
+// get byte (called by ppu)
 uchar
 CPU::
 ppuGetByte(ushort addr) const
@@ -36,16 +38,26 @@ getByte(ushort addr) const
 {
   // 2kB Internal RAM, mirrored 4 times
   if      (addr >= 0x0000 && addr <= 0x1FFF) {
-    addr &= 0x7FF;
+    uchar c = C6502::getByte(addr & 0x07FF);
+
+    if (isDebugRead() && ! in_ppu_ && ! isDebugger())
+      std::cerr << "CPU::getByte (Internal RAM) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
+
+    return c;
   }
   // Input/Output
   else if (addr >= 0x2000 && addr <= 0x4FFF) {
     auto *ppu = machine_->getPPU();
 
-    // PPU Status Register
+    uchar c = 0x00;
+
+    // PPU Status Register (PPUSTATUS)
     if      (addr == 0x2002) {
       // read only
-      uchar c = 0x00;
+      c = 0x00;
+
+      // TODO: Sprite overflow on bit 5
 
       if (ppu->isSpriteHit())
         c |= 0x40; // TODO
@@ -55,110 +67,140 @@ getByte(ushort addr) const
 
       // reset on read
       if (! isDebugger()) {
-        ppu->setSpriteHit(false);
+      //ppu->setSpriteHit(false);
         ppu->setVBlank   (false);
+
+        byteId_ = 0;
       }
 
-      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-
-      return c;
+      if (isDebugRead() && ! in_ppu_ && ! isDebugger())
+        std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
     }
-    // Sprite Memory Data
+    // Sprite Memory Data (OAMDATA)
     else if (addr == 0x2004) {
-      uchar c = spriteMem_[spriteAddr_++];
+      if (! isDebugger()) {
+        c = spriteMem_[spriteAddr_++];
 
-      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-
-      return c;
+        if (isDebugRead() && ! in_ppu_)
+          std::cerr << "CPU::getSpriteByte " <<
+            std::hex << addr << " " << std::hex << int(c) << "\n";
+      }
+      else
+        c = C6502::getByte(addr);
     }
-    // PPU Memory Data
+    // PPU Memory Data (PPUDATA)
     else if (addr == 0x2007) {
-      uchar c = ppu->getByte(ppuAddr_++);
+      if (! isDebugger()) {
+        if (ppuAddr_ < 0x3F00) {
+          c = ppuBuffer_;
 
-      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+          ppuBuffer_ = ppu->getByte(ppuAddr_);
+        }
+        else {
+          c = ppu->getByte(ppuAddr_);
 
-      return c;
+          ppuBuffer_ = ppu->getByte(ppuAddr_); // TODO: mirrored nametable data ?
+        }
+
+        ++ppuAddr_;
+      }
+      else
+        c = ppuBuffer_;
     }
     // Joystick 1 + Strobe
     else if (addr == 0x4016) {
-      uchar c = 0x40;
+      if (! isDebugger()) {
+        c = 0x40;
 
-      if (ppu->isKey1(keyNum1_))
-        c |= 0x01;
+        if (ppu->isKey1(keyNum1_))
+          c |= 0x01;
 
-      keyNum1_ = ((keyNum1_ + 1) & 0x07);
+        keyNum1_ = ((keyNum1_ + 1) & 0x07);
 
-      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-
-      return c;
+        if (isDebugRead() && ! in_ppu_)
+          std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+      }
+      else
+        c = C6502::getByte(addr);
     }
     // Joystick 2
     else if (addr == 0x4017) {
-      uchar c = 0x40; // TODO
+      // Not connected
+      if (! isDebugger()) {
+#if 0
+        c = 0x40;
 
-      if (ppu->isKey2(keyNum2_))
-        c |= 0x01;
+        if (ppu->isKey2(keyNum2_))
+          c |= 0x01;
 
-      keyNum2_ = ((keyNum2_ + 1) & 0x07);
+        keyNum2_ = ((keyNum2_ + 1) & 0x07);
 
-      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-
-      return c;
+        if (isDebugRead() && ! in_ppu_)
+          std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+#else
+        c = 0x42;
+#endif
+      }
+      else
+        c = C6502::getByte(addr);
     }
     else {
-      uchar c = C6502::getByte(addr);
+      c = C6502::getByte(addr);
 
-      if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-
-      return c;
+      if (isDebugRead() && ! in_ppu_ && ! isDebugger())
+        std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
     }
-  }
-  // APU, I/O Registers
-  else if (addr >= 0x6000 && addr <= 0x6FFF) {
+
+    return c;
   }
   // Expansion Modules
   else if (addr >= 0x5000 && addr <= 0x5FFF) {
+    uchar c = C6502::getByte(addr);
+
+    if (isDebugRead() && ! in_ppu_ && ! isDebugger())
+      std::cerr << "CPU::getByte (Expansion Module) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
+
+    return c;
   }
   // Cartridge RAM (may be battery-backed)
   else if (addr >= 0x6000 && addr <= 0x7FFF) {
+    uchar c = C6502::getByte(addr);
+
+    if (isDebugRead() && ! in_ppu_ && ! isDebugger())
+      std::cerr << "CPU::getByte (Cartridge RAM) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
+
+    return c;
   }
-  // Lower Bank of Cartridge ROM
+  // Lower Bank of Cartridge ROM (16k)
   else if (addr >= 0x8000 && addr <= 0xBFFF) {
+    auto *cart = machine_->getCart();
+
     uchar c;
 
-    if (machine_->getCart()->getROMByte(addr - 0x8000, c)) {
-      if (isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    // cartridge code
+    if (! cart->getLowerROMByte(addr - 0x8000, c))
+      c = C6502::getByte(addr);
 
-      return c;
-    }
+    return c;
   }
-  // Upper Bank of Cartridge ROM
+  // Upper Bank of Cartridge ROM (16k)
   else if (addr >= 0xC000 && addr <= 0xFFFF) {
+    auto *cart = machine_->getCart();
+
     uchar c;
 
-    if (machine_->getCart()->getROMByte(addr - 0x8000, c)) {
-      if (isDebug() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    // cartridge code
+    if (! cart->getUpperROMByte(addr - 0xC000, c))
+      c = C6502::getByte(addr);
 
-      return c;
-    }
+    return c;
   }
-
-  //---
-
-  uchar c = C6502::getByte(addr);
-
-  if (isDebug() && ! in_ppu_ && ! isDebugger())
-    std::cerr << "CPU::getByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-
-  return c;
+  else {
+    assert(false);
+    return 0;
+  }
 }
 
 void
@@ -167,8 +209,9 @@ setByte(ushort addr, uchar c)
 {
   // 2kB Internal RAM, mirrored 4 times
   if      (addr >= 0x0000 && addr <= 0x1FFF) {
-    if (isDebug() && ! in_ppu_ && ! isDebugger())
-      std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    if (isDebugWrite() && ! isDebugger())
+      std::cerr << "CPU::setByte (Internal RAM) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
 
     addr &= 0x7FF;
   }
@@ -176,55 +219,65 @@ setByte(ushort addr, uchar c)
   else if (addr >= 0x2000 && addr <= 0x4FFF) {
     auto *ppu = machine_->getPPU();
 
-    if (ppu->isDebug() && ! in_ppu_ && ! isDebugger())
-      std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    if (isDebugWrite() && ! isDebugger())
+      std::cerr << "CPU::setByte (Input/Output) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
 
-    // PPU Control Register 1
+    // PPU Control Register 1 (PPUCTRL)
     if      (addr == 0x2000) {
-      nameTableAddr_      = 0x2000 + (c & 0x3)*0x400; // TODO: mirroring ?
+      nameTable_          = (c & 0x3); // TODO: mirroring ?
+      nameTableAddr_      = 0x2000 + nameTable_*0x400; // TODO: mirroring ?
       verticalWrite_      = (c & 0x04);
-      spritePatternAddr_  = (c & 0x08 ? 0x1000 : 0x000); // TODO
-      screenPatternAddr_  = (c & 0x10 ? 0x1000 : 0x000);
-      spriteDoubleHeight_ = (c & 0x20); // TODO
-      hitInterrupt_       = (c & 0x40); // TODO
+      spritePatternAddr_  = (c & 0x08 ? 0x1000 : 0x0000);
+      screenPatternAddr_  = (c & 0x10 ? 0x1000 : 0x0000);
+      spriteDoubleHeight_ = (c & 0x20);
+      hitInterrupt_       = (c & 0x40); // TODO ???
       blankInterrupt_     = (c & 0x80);
+
+      spritePatternAltAddr_ = (spritePatternAddr_ == 0x1000 ? 0x0000 : 0x100);
     }
-    // PPU Control Register 2
+    // PPU Control Register 2 (PPUMASK)
     else if (addr == 0x2001) {
-      imageMask_     = (c & 0x02); // TODO
-      spriteMask_    = (c & 0x04); // TODO
-      screenVisible_ = (c & 0x08);
-      spritesSwitch_ = (c & 0x10); // TODO
+//    grayScale_      = (c & 0x01); // TODO
+      imageMask_      = (c & 0x02); // TODO
+      spriteMask_     = (c & 0x04); // TODO
+      screenVisible_  = (c & 0x08);
+      spritesVisible_ = (c & 0x10);
+//    emphasizeRed_   = (c & 0x20); // TODO
+//    emphasizeGreen_ = (c & 0x40); // TODO
+//    emphasizeBlue_  = (c & 0x80); // TODO
     }
-    // PPU Status Register
+    // PPU Status Register (PPUSTATUS)
     else if (addr == 0x2002) {
       // read only
     }
-    // Sprite Memory Address
+    // Sprite Memory Address (OAMADDR)
     else if (addr == 0x2003) {
-      spriteAddr_ = c;
+      setSpriteAddr(c);
     }
-    // Sprite Memory Data
+    // Sprite Memory Data (OAMDATA)
     else if (addr == 0x2004) {
       spriteMem_[spriteAddr_++] = c;
     }
-    // Background Scroll
+    // Background Scroll (PPUSCROLL)
+    // TODO: shares internal register with PPUADDR ?
     else if (addr == 0x2005) {
-      if (c < 0xF0) {
-        scrollXY_[scrollId_] = c; // TODO
+      // ignore vertical scroll value if >= 240
+      if (byteId_ != 0 || c < 0xF0)
+        scrollHV_[byteId_] = c;
 
-        scrollId_ = 1 - scrollId_;
-      }
+      byteId_ = 1 - byteId_;
     }
-    // PPU Memory Address
+    // PPU Memory Address (PPUADDR)
     else if (addr == 0x2006) {
-      ppuAddrHL_[ppuId_] = c;
+      ppuAddrHL_[byteId_] = c;
 
-      ppuId_ = 1 - ppuId_;
+      byteId_ = 1 - byteId_;
 
       ppuAddr_ = (ppuAddrHL_[0] << 8) | ppuAddrHL_[1];
+      ppuAddr_ &= 0x3FFF;
     }
-    // PPU Memory Data
+    // PPU Memory Data (PPUDATA)
     else if (addr == 0x2007) {
       ppu->setByte(ppuAddr_, c);
 
@@ -246,13 +299,20 @@ setByte(ushort addr, uchar c)
     if      (addr >= 0x4000 && addr <= 0x4013) {
       // TODO
     }
-    // DMA Access to the Sprite Memory
+    // DMA Access to the Sprite Memory (OAMDMA)
     else if (addr == 0x4014) {
-      C6502::memget(0x100*c, &spriteMem_[0], 0x100);
+      C6502::memget(c << 8, &spriteMem_[0], 0x100);
+
+      tick(255); tick(255); tick(3); // 513 or 514 ?
     }
     // Sound Switch
     else if (addr == 0x4015) {
       // TODO
+      //soundEnabled_[0] = (c & 0x01);
+      //soundEnabled_[1] = (c & 0x02);
+      //soundEnabled_[2] = (c & 0x04);
+      //soundEnabled_[3] = (c & 0x08);
+      //soundEnabled_[4] = (c & 0x10);
     }
     // Joystick 1 + Strobe
     else if (addr == 0x4016) {
@@ -266,31 +326,33 @@ setByte(ushort addr, uchar c)
       if (c == 0)
         keyNum2_ = 0;
     }
+
+    signalNesChanged();
   }
   // Expansion Modules
   else if (addr >= 0x5000 && addr <= 0x5FFF) {
-    if (isDebug() && ! in_ppu_ && ! isDebugger())
-      std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    if (isDebugWrite() && ! isDebugger())
+      std::cerr << "CPU::setByte (Expansion Modules) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
   }
   // Cartridge RAM (may be battery-backed)
   else if (addr >= 0x6000 && addr <= 0x7FFF) {
-    if (isDebug() && ! in_ppu_ && ! isDebugger())
-      std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    if (isDebugWrite() && ! isDebugger())
+      std::cerr << "CPU::setByte (Cartridge RAM) " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
   }
   // Lower Bank of Cartridge ROM
   else if (addr >= 0x8000 && addr <= 0xBFFF) {
-    if (isDebug() && ! in_ppu_ && ! isDebugger())
-      std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    auto *cart = machine_->getCart();
 
-    if (machine_->getCart()->setROMByte(addr - 0x8000, c))
+    if (cart->setROMByte(addr - 0x8000, c))
       return;
   }
   // Upper Bank of Cartridge ROM
   else if (addr >= 0xC000 && addr <= 0xFFFF) {
-    if (isDebug() && ! in_ppu_ && ! isDebugger())
-      std::cerr << "CPU::setByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+    auto *cart = machine_->getCart();
 
-    if (machine_->getCart()->setROMByte(addr - 0x8000, c))
+    if (cart->setROMByte(addr - 0xC000, c))
       return;
   }
 
@@ -306,8 +368,11 @@ memset(ushort addr, const uchar *data, ushort len)
 
 void
 CPU::
-tick(uchar /*n*/)
+tick(uchar n)
 {
+  auto *ppu = machine_->getPPU();
+
+  ppu->tick(n);
 }
 
 bool

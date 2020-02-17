@@ -1,0 +1,8 @@
+0x1000 = 4k
+
+prgRamSize 8192   (8k)
+  $6000-$8000
+prgSize    32768  (32k)
+  $8000-$FFFF
+chrSize    16384  (16k)
+  4 tables (4 x 4k)

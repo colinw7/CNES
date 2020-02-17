@@ -391,7 +391,7 @@ versa.
 
 **************************** Memory Mappers ****************************
 
-  There are many diffirent memory mappers (aka MMCs) used in the NES 
+  There are many different memory mappers (aka MMCs) used in the NES 
 cartridges. They are used to switch ROM and VROM pages, and do some other 
 tasks. I will only describe the MMCs I'm familiar with. Any new 
 information on these and other MMCs is highly appreciated. The MMC 

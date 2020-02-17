@@ -32,6 +32,7 @@ init()
   connect(qcpu_, SIGNAL(handleBreakSignal()), this, SIGNAL(handleBreakSignal()));
   connect(qcpu_, SIGNAL(breakpointHitSignal()), this, SIGNAL(breakpointHitSignal()));
   connect(qcpu_, SIGNAL(illegalJumpSignal()), this, SIGNAL(illegalJumpSignal()));
+  connect(qcpu_, SIGNAL(nmiSignal()), this, SIGNAL(nmiSignal()));
 
   connect(qcpu_, SIGNAL(breakpointsChangedSignal()), this, SIGNAL(breakpointsChangedSignal()));
 

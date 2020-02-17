@@ -21,8 +21,11 @@ class Machine {
   PPU       *getPPU () const { return ppu_ ; }
   Cartridge *getCart() const { return cart_; }
 
-  bool isDebug() const { return debug_; }
-  void setDebug(bool b) { debug_ = b; }
+  bool isDebugRead() const { return debugRead_; }
+  void setDebugRead(bool b) { debugRead_ = b; }
+
+  bool isDebugWrite() const { return debugWrite_; }
+  void setDebugWrite(bool b) { debugWrite_ = b; }
 
  protected:
   void initMemory();
@@ -32,10 +35,11 @@ class Machine {
  protected:
   friend class CPU;
 
-  CPU*       cpu_   { nullptr };
-  PPU*       ppu_   { nullptr };
-  Cartridge* cart_  { nullptr };
-  bool       debug_ { false };
+  CPU*       cpu_        { nullptr };
+  PPU*       ppu_        { nullptr };
+  Cartridge* cart_       { nullptr };
+  bool       debugRead_  { false };
+  bool       debugWrite_ { false };
 };
 
 }

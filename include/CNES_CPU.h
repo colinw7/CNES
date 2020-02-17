@@ -13,8 +13,11 @@ class CPU : public C6502 {
   CPU(Machine *machine);
  ~CPU();
 
-  bool isDebug() const { return debug_; }
-  void setDebug(bool b) { debug_ = b; }
+  bool isDebugRead() const { return debugRead_; }
+  void setDebugRead(bool b) { debugRead_ = b; }
+
+  bool isDebugWrite() const { return debugWrite_; }
+  void setDebugWrite(bool b) { debugWrite_ = b; }
 
   uchar ppuGetByte(ushort addr) const;
 
@@ -27,37 +30,86 @@ class CPU : public C6502 {
 
   bool isScreen(ushort pos, ushort len) const override;
 
-  bool isBlankInterrupt() const { return blankInterrupt_; }
+  //---
 
-  ushort nameTableAddr() const { return nameTableAddr_; }
-
+  // screen
   ushort screenPatternAddr() const { return screenPatternAddr_; }
 
   bool isScreenVisible() const { return screenVisible_; }
 
+  // sprites
+  ushort spritePatternAddr() const { return spritePatternAddr_; }
+  ushort spritePatternAltAddr() const { return spritePatternAltAddr_; }
+
+  bool isSpriteDoubleHeight() const { return spriteDoubleHeight_; }
+  bool isSpriteMasked() const { return spriteMask_; }
+  bool isSpritesVisible() const { return spritesVisible_; }
+
+  uchar spriteAddr() const { return spriteAddr_; }
+  void setSpriteAddr(uchar a) { spriteAddr_ = a; }
+
+  uchar spriteMem(uchar i) const { return spriteMem_[i]; }
+
+  // ppu
+  bool isVerticalWrite() const { return verticalWrite_; }
+
+  // name table
+  uchar nameTable() const { return nameTable_; }
+  ushort nameTableAddr() const { return nameTableAddr_; }
+
+  // interrupts
+  bool isHitInterrupt() const { return hitInterrupt_; }
+  bool isBlankInterrupt() const { return blankInterrupt_; }
+
+  //---
+
+  uchar scrollH() const { return scrollHV_[0]; }
+  uchar scrollV() const { return scrollHV_[1]; }
+
+  virtual void signalNesChanged() { }
+
  private:
-  Machine*       machine_            { nullptr };
-  bool           debug_              { false };
-  mutable ushort spritePatternAddr_  { 0 };
-  mutable ushort screenPatternAddr_  { 0x0000 };
-  mutable ushort ppuAddr_            { 0 };
-  ushort         nameTableAddr_      { 0 };
-  bool           verticalWrite_      { false };
-  bool           spriteDoubleHeight_ { false };
-  bool           hitInterrupt_       { false };
-  bool           blankInterrupt_     { false };
-  bool           imageMask_          { false };
-  bool           spriteMask_         { false };
-  bool           screenVisible_      { false };
-  bool           spritesSwitch_      { false };
-  uchar          scrollXY_[2];
-  uchar          scrollId_           { 0 };
-  uchar          ppuAddrHL_[2];
-  uchar          ppuId_              { 0 };
+  Machine*       machine_              { nullptr };
 
+  // debug
+  bool           debugRead_            { false };
+  bool           debugWrite_           { false };
+
+  // screen
+  mutable ushort screenPatternAddr_    { 0x0000 };
+  bool           screenVisible_        { false };
+
+  // sprites
+  mutable ushort spritePatternAddr_    { 0x0000 };
+  mutable ushort spritePatternAltAddr_ { 0x1000 };
+  bool           spriteDoubleHeight_   { false };
+  bool           spriteMask_           { false };
+  bool           spritesVisible_       { false };
   mutable uchar  spriteAddr_ { 0 };
-  uchar          spriteMem_[256];
+  uchar          spriteMem_[256]; // TODO: typically located at $0200-$02FF
 
+  mutable uchar  byteId_               { 0 }; // byte id for PPUSCROLL and PPUADDR
+
+  // ppu (PPUADDR)
+  mutable ushort ppuAddr_              { 0x0000 };
+  mutable uchar  ppuBuffer_            { 0x00 };
+  uchar          ppuAddrHL_[2];
+  bool           verticalWrite_        { false }; // for ppu addr increment
+
+  // name table
+  uchar          nameTable_            { 0x00 };
+  ushort         nameTableAddr_        { 0x0000 };
+
+  // interrupts
+  bool           hitInterrupt_         { false };
+  bool           blankInterrupt_       { false };
+
+  bool           imageMask_            { false };
+
+  // scroll (PPUSCROLL)
+  uchar          scrollHV_[2];
+
+  // keys
   mutable uchar keyNum1_ { 0 };
   mutable uchar keyNum2_ { 0 };
 

@@ -25,8 +25,11 @@ class QCPU : public QObject, public CPU {
   void handleBreak  () override { emit handleBreakSignal(); }
   void breakpointHit() override { emit breakpointHitSignal(); }
   void illegalJump  () override { emit illegalJumpSignal(); }
+  void handleNMI    () override { emit nmiSignal(); }
 
   void breakpointsChanged() override { emit breakpointsChangedSignal(); }
+
+  void signalNesChanged() override { emit nesChangedSignal(); }
 
  signals:
 //void registerChangedSignal();
@@ -39,8 +42,11 @@ class QCPU : public QObject, public CPU {
   void handleBreakSignal();
   void breakpointHitSignal();
   void illegalJumpSignal();
+  void nmiSignal();
 
   void breakpointsChangedSignal();
+
+  void nesChangedSignal();
 };
 
 }

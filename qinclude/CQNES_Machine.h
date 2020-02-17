@@ -32,6 +32,7 @@ class QMachine : public QObject, public Machine {
   void handleBreakSignal();
   void breakpointHitSignal();
   void illegalJumpSignal();
+  void nmiSignal();
 
   void breakpointsChangedSignal();
 

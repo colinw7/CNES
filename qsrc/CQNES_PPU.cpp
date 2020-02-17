@@ -18,11 +18,13 @@ QPPU(QMachine *qmachine) :
 
   setScale(4);
 
+  //---
+
   timer_ = new QTimer;
 
   connect(timer_, SIGNAL(timeout()), this, SLOT(drawLineSlot()));
 
-  timer_->start(1000/60); // 60Htz
+  timer_->start(s_cycleTime);
 }
 
 void
@@ -51,20 +53,30 @@ void
 QPPU::
 drawLineSlot()
 {
-  updateImage();
+  if (numDrawLines_ > 0) {
+    updateImage();
 
-  if (lineNum_ >= s_vsyncLines + s_vblank1Lines && lineNum_ < s_numLines - s_vblank2Lines) {
-    for (int i = 0; i < 8; ++i)
+#if 0
+    // scan line
+    ipainter_->setPen(Qt::black);
+
+    int py = scale()*lineNum_;
+
+    for (int isy = 0; isy < scale(); ++isy)
+      ipainter_->drawLine(0, py + isy, width() - 1, py + isy);
+#endif
+
+    for (int i = 0; i < numDrawLines_; ++i) {
       drawLine(lineNum_++);
-  }
-  else {
-    drawLine(lineNum_++);
-  }
 
-  if (lineNum_ >= s_numLines)
-    lineNum_ = 0;
+      if (lineNum_ >= s_numLines)
+        lineNum_ = 0;
+    }
 
-  update();
+    numDrawLines_ = 0;
+
+    update();
+  }
 }
 
 void
@@ -111,6 +123,7 @@ paintEvent(QPaintEvent *)
 
   QPainter painter(this);
 
+  // TODO: get bg color from PPU
   painter.fillRect(rect(), Qt::black);
 
   if (image_)
@@ -131,11 +144,14 @@ paintEvent(QPaintEvent *)
   //---
 
   // scan line
-  painter.setPen(QColor(0,255,0));
+  if (isShowScanLine()) {
+    painter.setPen(QColor(0,255,0));
 
-  int py = lineNum_*scale();
+    int py = lineNum_*scale();
 
-  painter.drawLine(0, py, width() - 1, py);
+    for (int isy = 0; isy < scale(); ++isy)
+      painter.drawLine(0, py + isy, width() - 1, py + isy);
+  }
 }
 
 void
@@ -187,22 +203,42 @@ void
 QPPU::
 setColor(uchar c)
 {
-  static QColor colors[4] {
-    QColor(0, 0, 0), QColor(82, 82, 82), QColor(164, 164, 164), QColor(255, 255, 255)
+  static QColor colors[64] {
+    QColor( 84,  84,  84), QColor(  0,  30, 116), QColor(  8,  16, 144), QColor( 48,   0, 136),
+    QColor( 68,   0, 100), QColor( 92,   0,  48), QColor( 84,   4,   0), QColor( 60,  24,   0),
+    QColor( 32,  42,   0), QColor(  8,  58,   0), QColor(  0,  64,   0), QColor(  0,  60,   0),
+    QColor(  0,  50,  60), QColor(  0,   0,   0), QColor(  0,   0,   0), QColor(  0,   0,   0),
+
+    QColor(152, 150, 152), QColor(  8,  76, 196), QColor( 48,  50, 236), QColor( 92,  30, 228),
+    QColor(136,  20, 176), QColor(160,  20, 100), QColor(152,  34,  32), QColor(120,  60,   0),
+    QColor( 84,  90,   0), QColor( 40, 114,   0), QColor(  8, 124,   0), QColor(  0, 118,  40),
+    QColor(  0, 102, 120), QColor(  0,   0,   0), QColor(  0,   0,   0), QColor(  0,   0,   0),
+
+    QColor(236, 238, 236), QColor( 76, 154, 236), QColor(120, 124, 236), QColor(176,  98, 236),
+    QColor(228,  84, 236), QColor(236,  88, 180), QColor(236, 106, 100), QColor(212, 136,  32),
+    QColor(160, 170,   0), QColor(116, 196,   0), QColor( 76, 208,  32), QColor( 56, 204, 108),
+    QColor( 56, 180, 204), QColor( 60,  60,  60), QColor(  0,   0,   0), QColor(  0,   0,   0),
+
+    QColor(236, 238, 236), QColor(168, 204, 236), QColor(188, 188, 236), QColor(212, 178, 236),
+    QColor(236, 174, 236), QColor(236, 174, 212), QColor(236, 180, 176), QColor(228, 196, 144),
+    QColor(204, 210, 120), QColor(180, 222, 120), QColor(168, 226, 144), QColor(152, 226, 180),
+    QColor(160, 214, 228), QColor(160, 162, 160), QColor(  0,   0,   0), QColor(  0,   0,   0),
   };
 
-  ipainter_->setPen(colors[c]);
+  ipainter_->setPen(colors[c & 0x3F]);
 }
 
 void
 QPPU::
 drawPixel(int x, int y)
 {
-  int x1 = x*scale() + margin();
-  int y1 = y*scale() + margin();
+  int s = scale();
 
-  for (int isy = 0; isy < scale(); ++isy) {
-    for (int isx = 0; isx < scale(); ++isx) {
+  int x1 = x*s + margin();
+  int y1 = y*s + margin();
+
+  for (int isy = 0; isy < s; ++isy) {
+    for (int isx = 0; isx < s; ++isx) {
       ipainter_->drawPoint(x1 + isx, y1 + isy);
     }
   }
