@@ -72,9 +72,8 @@ class Cartridge {
   bool  trainer_      { false };
   bool  ignoreMirror_ { false };
 
-  bool  vsUni_      { false };
-  bool  playChoice_ { false };
-  uchar nesVer_     { 0 };
+  uchar consoleType_ { 0 };
+  uchar nesVer_      { 0 };
 
   uchar mapper_ { 0 };
 
@@ -121,8 +120,26 @@ class Cartridge {
     uchar bank { 0 };
   };
 
+  struct Ver2Data {
+    uchar ppuType1  { 0x00 };
+    uchar hardType1 { 0x00 };
+    uchar extType   { 0x00 };
+    uchar prgShift2 { 0x00 };
+    uchar defExp    { 0x00 };
+    uchar miscRoms  { 0x00 };
+    uchar subMapper { 0x00 };
+    uchar prgSize1  { 0x00 };
+    uchar mapperHi1 { 0x00 };
+    uchar chrSize1  { 0x00 };
+    uchar ppuTiming { 0x00 };
+    uchar prgShift1 { 0x00 };
+    uchar chrRam1   { 0x00 };
+    uchar chrRam2   { 0x00 };
+  };
+
   Mapper1Data mapper1Data_;
   Mapper2Data mapper2Data_;
+  Ver2Data    ver2Data;
 
   mutable int currentTile_;
 };

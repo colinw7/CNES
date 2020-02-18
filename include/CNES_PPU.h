@@ -23,6 +23,8 @@ class PPU {
   uchar getByte(ushort addr) const;
   void setByte(ushort addr, uchar c);
 
+  uchar getVRAMByte(ushort addr) const;
+
   virtual void memChanged(ushort /*addr*/, ushort /*len*/) { }
 
   //---
@@ -60,10 +62,10 @@ class PPU {
   virtual void setColor(uchar /*c*/) { }
   virtual void drawPixel(int /*x*/, int /*y*/) { }
 
-  int sprite0Line() const;
+  bool isSprite0Hit(int y) const;
 
  protected:
-  using Pixels = std::vector<uchar>;
+  using Pixels = std::vector<ushort>;
 
   static const int s_vsyncLines    { 3 };
   static const int s_vblank1Lines  { 14 };
@@ -93,6 +95,7 @@ class PPU {
   bool     spriteHit_    { false };
   int      lineTicks_    { s_ticksPerLine };
   int      numDrawLines_ { 0 };
+  uchar    scrollV_      { 0 };
   bool     in_ppu_       { false };
   Pixels   pixels_;
 };

@@ -51,18 +51,29 @@ class CQNESDbg : public CQ6502Dbg {
 
   struct NESData {
     QGroupBox*     group                 { nullptr };
+
     QCheckBox*     debugReadCheck        { nullptr };
     QCheckBox*     debugWriteCheck       { nullptr };
+
     QCheckBox*     illegalJumpCheck      { nullptr };
     QCheckBox*     nmiCheck              { nullptr };
+
     CQ6502HexEdit* nameTableEdit         { nullptr };
     QCheckBox*     verticalWriteCheck    { nullptr };
-    CQ6502HexEdit* spritePatternAddrEdit { nullptr };
-    CQ6502HexEdit* screenPatternAddrEdit { nullptr };
+
     QCheckBox*     screenVisibleCheck    { nullptr };
+    CQ6502HexEdit* screenPatternAddrEdit { nullptr };
+
     QCheckBox*     spritesVisibleCheck   { nullptr };
-    QCheckBox*     hitInterruptCheck     { nullptr };
+    CQ6502HexEdit* spritePatternAddrEdit { nullptr };
+    CQ6502HexEdit* spriteSizeEdit        { nullptr };
+  //QCheckBox*     hitInterruptCheck     { nullptr };
+
+    QCheckBox*     imageMaskCheck        { nullptr };
+    QCheckBox*     spriteMaskCheck       { nullptr };
+
     QCheckBox*     blankInterruptCheck   { nullptr };
+
     CQ6502HexEdit* scrollVEdit           { nullptr };
     CQ6502HexEdit* scrollHEdit           { nullptr };
   };

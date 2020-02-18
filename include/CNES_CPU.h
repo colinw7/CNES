@@ -42,8 +42,9 @@ class CPU : public C6502 {
   ushort spritePatternAltAddr() const { return spritePatternAltAddr_; }
 
   bool isSpriteDoubleHeight() const { return spriteDoubleHeight_; }
-  bool isSpriteMasked() const { return spriteMask_; }
   bool isSpritesVisible() const { return spritesVisible_; }
+
+  uchar spriteSize() const { return (isSpriteDoubleHeight() ? 16 : 8); }
 
   uchar spriteAddr() const { return spriteAddr_; }
   void setSpriteAddr(uchar a) { spriteAddr_ = a; }
@@ -58,13 +59,28 @@ class CPU : public C6502 {
   ushort nameTableAddr() const { return nameTableAddr_; }
 
   // interrupts
-  bool isHitInterrupt() const { return hitInterrupt_; }
-  bool isBlankInterrupt() const { return blankInterrupt_; }
+  bool isSpriteInterrupt() const { return spriteInterrupt_; }
+  bool isBlankInterrupt () const { return blankInterrupt_ ; }
+
+  // color
+  bool isGrayScale() const { return grayScale_; }
+
+  bool isEmphasizeRed  () const { return emphasizeRed_; }
+  bool isEmphasizeGreen() const { return emphasizeGreen_; }
+  bool isEmphasizeBlue () const { return emphasizeBlue_; }
+
+  // mask
+  bool isSpriteMasked() const { return spriteMask_; }
+  bool isImageMasked() const { return imageMask_; }
 
   //---
 
   uchar scrollH() const { return scrollHV_[0]; }
   uchar scrollV() const { return scrollHV_[1]; }
+
+  void resetScroll() { scrollHV_[0] = 0; scrollHV_[1] = 0; }
+
+  //---
 
   virtual void signalNesChanged() { }
 
@@ -83,7 +99,6 @@ class CPU : public C6502 {
   mutable ushort spritePatternAddr_    { 0x0000 };
   mutable ushort spritePatternAltAddr_ { 0x1000 };
   bool           spriteDoubleHeight_   { false };
-  bool           spriteMask_           { false };
   bool           spritesVisible_       { false };
   mutable uchar  spriteAddr_ { 0 };
   uchar          spriteMem_[256]; // TODO: typically located at $0200-$02FF
@@ -101,10 +116,18 @@ class CPU : public C6502 {
   ushort         nameTableAddr_        { 0x0000 };
 
   // interrupts
-  bool           hitInterrupt_         { false };
+  bool           spriteInterrupt_      { false };
   bool           blankInterrupt_       { false };
 
+  // colors
+  bool           grayScale_            { false };
+  bool           emphasizeRed_         { false };
+  bool           emphasizeGreen_       { false };
+  bool           emphasizeBlue_        { false };
+
+  // mask
   bool           imageMask_            { false };
+  bool           spriteMask_           { false };
 
   // scroll (PPUSCROLL)
   uchar          scrollHV_[2];

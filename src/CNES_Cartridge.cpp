@@ -63,6 +63,12 @@ loadNES(const std::string &filename)
 
   //---
 
+  auto initData = [&](std::vector<uchar> &data, ushort n) {
+    data.resize(n);
+
+    std::memset(&data[0], 0, n*sizeof(uchar));
+  };
+
   auto readData = [&](std::vector<uchar> &data, ushort &n) {
     static uchar buffer[65526];
 
@@ -103,18 +109,52 @@ loadNES(const std::string &filename)
 
   uchar mapperLo = (header[6] & 0xF0) >> 4; // Four lower bits of ROM Mapper Type
 
-  vsUni_      = header[7] & 0x01;        // 1 for VS-System cartridges
-  playChoice_ = header[7] & 0x02;
-  nesVer_     = (header[7] & 0x0C) >> 2;
+  // Console Type
+  // 0: Nintendo Entertainment System/Family Computer
+  // 1: Nintendo Vs. System
+  // 2: Nintendo Playchoice 10
+  // 3: Extended Console Type
+  consoleType_ = header[7] & 0x03;
+
+  nesVer_ = (header[7] & 0x0C) >> 2;
 
   uchar mapperHi = (header[7] & 0xF0) >> 4; // Four higher bits of ROM Mapper Type.
 
-  prgCount_   = (header[8] ? header[8] : 1); // Number of 8kB RAM banks
-  prgRamSize_ = prgCount_*8192;              // RAM size
+  if (nesVer_ == 2) {
+    ver2Data.mapperHi1 = header[8] & 0x0F;
+    ver2Data.subMapper = header[8] & 0xF0;
 
-  tvType_       = header[9] & 0x03;     // 1 for PAL cartridges, otherwise assume NTSC
-  hasPrgRam_    = ! (header[9] & 0x10);
-  busConflicts_ = header[9] & 0x20;
+    ver2Data.prgSize1 = header[9] & 0x0F;
+    ver2Data.chrSize1 = header[9] & 0xF0;
+
+    ver2Data.prgShift1 = header[10] & 0x0F;
+    ver2Data.prgShift2 = header[10] & 0xF0;
+
+    ver2Data.chrRam1 = header[11] & 0xF0;
+    ver2Data.chrRam2 = header[11] & 0xF0;
+
+    ver2Data.ppuTiming = header[12] & 0x03;
+
+    if      (consoleType_ == 1) {
+      ver2Data.ppuType1  = header[13] & 0x0F;
+      ver2Data.hardType1 = header[13] & 0xF0;
+    }
+    else if (consoleType_ == 3) {
+      ver2Data.extType = header[13] & 0x0F;
+    }
+
+    ver2Data.miscRoms = header[14] & 0x03;
+
+    ver2Data.defExp = header[15] & 0x3F;
+  }
+  else {
+    prgCount_   = (header[8] ? header[8] : 1); // Number of 8kB RAM banks
+    prgRamSize_ = prgCount_*8192;              // RAM size
+
+    tvType_       = header[9] & 0x03;     // 1 for PAL cartridges, otherwise assume NTSC
+    hasPrgRam_    = ! (header[9] & 0x10);
+    busConflicts_ = header[9] & 0x20;
+  }
 
   mapper_ = mapperLo | (mapperHi << 4);
 
@@ -143,12 +183,13 @@ loadNES(const std::string &filename)
 
   // character ram (optional)
   if (hasPrgRam_) {
-    (void) readData(prgRamData_, prgRamSize_);
+    if (! readData(prgRamData_, prgRamSize_))
+      initData(prgRamData_, prgRamSize_);
   }
 
   //---
 
-  if (playChoice_) {
+  if (consoleType_ == 2) {
     ushort playChoiceSize = 8192;
 
     if (! readData(playChoiceData_, playChoiceSize))

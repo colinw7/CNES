@@ -10,6 +10,7 @@ CPU::
 CPU(Machine *machine) :
  C6502(), machine_(machine)
 {
+  // enable unsupported 6502 instructons
   setUnsupported(true);
 }
 
@@ -55,12 +56,12 @@ getByte(ushort addr) const
     // PPU Status Register (PPUSTATUS)
     if      (addr == 0x2002) {
       // read only
-      c = 0x00;
+      c = 0x00; // TODO: Least significant bits previously written into a PPU register
 
       // TODO: Sprite overflow on bit 5
 
       if (ppu->isSpriteHit())
-        c |= 0x40; // TODO
+        c |= 0x40;
 
       if (ppu->isVBlank())
         c |= 0x80;
@@ -231,21 +232,21 @@ setByte(ushort addr, uchar c)
       spritePatternAddr_  = (c & 0x08 ? 0x1000 : 0x0000);
       screenPatternAddr_  = (c & 0x10 ? 0x1000 : 0x0000);
       spriteDoubleHeight_ = (c & 0x20);
-      hitInterrupt_       = (c & 0x40); // TODO ???
+//    spriteInterrupt_    = (c & 0x40); // TODO: wrong
       blankInterrupt_     = (c & 0x80);
 
       spritePatternAltAddr_ = (spritePatternAddr_ == 0x1000 ? 0x0000 : 0x100);
     }
     // PPU Control Register 2 (PPUMASK)
     else if (addr == 0x2001) {
-//    grayScale_      = (c & 0x01); // TODO
+      grayScale_      = (c & 0x01);
       imageMask_      = (c & 0x02); // TODO
       spriteMask_     = (c & 0x04); // TODO
       screenVisible_  = (c & 0x08);
       spritesVisible_ = (c & 0x10);
-//    emphasizeRed_   = (c & 0x20); // TODO
-//    emphasizeGreen_ = (c & 0x40); // TODO
-//    emphasizeBlue_  = (c & 0x80); // TODO
+      emphasizeRed_   = (c & 0x20);
+      emphasizeGreen_ = (c & 0x40);
+      emphasizeBlue_  = (c & 0x80);
     }
     // PPU Status Register (PPUSTATUS)
     else if (addr == 0x2002) {
@@ -263,7 +264,7 @@ setByte(ushort addr, uchar c)
     // TODO: shares internal register with PPUADDR ?
     else if (addr == 0x2005) {
       // ignore vertical scroll value if >= 240
-      if (byteId_ != 0 || c < 0xF0)
+      if (byteId_ != 1 || c < 0xF0)
         scrollHV_[byteId_] = c;
 
       byteId_ = 1 - byteId_;

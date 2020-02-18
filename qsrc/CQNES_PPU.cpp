@@ -1,4 +1,5 @@
 #include <CQNES_PPU.h>
+#include <CQNES_CPU.h>
 #include <CQNES_Machine.h>
 
 #include <QTimer>
@@ -225,7 +226,20 @@ setColor(uchar c)
     QColor(160, 214, 228), QColor(160, 162, 160), QColor(  0,   0,   0), QColor(  0,   0,   0),
   };
 
-  ipainter_->setPen(colors[c & 0x3F]);
+  auto *cpu = machine_->getCPU();
+
+  QColor color = colors[c & 0x3F];
+
+  if (cpu->isEmphasizeRed() || cpu->isEmphasizeGreen() || cpu->isEmphasizeBlue()) {
+    QColor color1 = color.lighter();
+    QColor color2 = color.darker ();
+
+    color = QColor(cpu->isEmphasizeRed  () ? color1.red  () : color2.red  (),
+                   cpu->isEmphasizeGreen() ? color1.green() : color2.green(),
+                   cpu->isEmphasizeBlue () ? color1.blue () : color2.blue ());
+  }
+
+  ipainter_->setPen(color);
 }
 
 void

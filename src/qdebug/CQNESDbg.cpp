@@ -139,18 +139,27 @@ addRightWidgets()
   nesData_.debugReadCheck  = nesChecks.first;
   nesData_.debugWriteCheck = nesChecks.second;
 
-  nesData_.illegalJumpCheck      = addCheck   (nesLayout, "Stop on Illegal Jump", nesRow);
-  nesData_.nmiCheck              = addCheck   (nesLayout, "Stop on NMI", nesRow);
-  nesData_.nameTableEdit         = addHexEdit2(nesLayout, "Name Table", nesRow);
-  nesData_.verticalWriteCheck    = addCheck   (nesLayout, "Vertical Write", nesRow);
+  nesData_.illegalJumpCheck = addCheck(nesLayout, "Stop on Illegal Jump", nesRow);
+  nesData_.nmiCheck         = addCheck(nesLayout, "Stop on NMI"         , nesRow);
+
+  nesData_.nameTableEdit      = addHexEdit2(nesLayout, "Name Table", nesRow);
+  nesData_.verticalWriteCheck = addCheck   (nesLayout, "Vertical Write", nesRow);
+
   nesData_.screenVisibleCheck    = addCheck   (nesLayout, "Screen Visible", nesRow);
   nesData_.screenPatternAddrEdit = addHexEdit4(nesLayout, "Screen Pattern Addr", nesRow);
+
   nesData_.spritesVisibleCheck   = addCheck   (nesLayout, "Sprites Visible", nesRow);
   nesData_.spritePatternAddrEdit = addHexEdit4(nesLayout, "Sprite Pattern Addr", nesRow);
-  nesData_.hitInterruptCheck     = addCheck   (nesLayout, "Hit Interrupt", nesRow);
-  nesData_.blankInterruptCheck   = addCheck   (nesLayout, "VBlank Interrupt", nesRow);
-  nesData_.scrollVEdit           = addHexEdit2(nesLayout, "Scroll V", nesRow);
-  nesData_.scrollHEdit           = addHexEdit2(nesLayout, "Scroll H", nesRow);
+  nesData_.spriteSizeEdit        = addHexEdit2(nesLayout, "Sprite Size", nesRow);
+//nesData_.hitInterruptCheck     = addCheck   (nesLayout, "Sprite Hit Interrupt", nesRow);
+
+  nesData_.imageMaskCheck  = addCheck(nesLayout, "Image Mask" , nesRow);
+  nesData_.spriteMaskCheck = addCheck(nesLayout, "Sprite Mask", nesRow);
+
+  nesData_.blankInterruptCheck = addCheck(nesLayout, "VBlank Interrupt", nesRow);
+
+  nesData_.scrollVEdit = addHexEdit2(nesLayout, "Scroll V", nesRow);
+  nesData_.scrollHEdit = addHexEdit2(nesLayout, "Scroll H", nesRow);
 
   nesLayout->setColumnStretch(3, 1);
   nesLayout->setRowStretch(nesRow, 1);
@@ -319,21 +328,33 @@ updateNESSlot()
   nesData_.debugReadCheck ->setChecked(cpu->isDebugRead ());
   nesData_.debugWriteCheck->setChecked(cpu->isDebugWrite());
 
-  nesData_.nameTableEdit        ->setValue  (cpu->nameTable());
-  nesData_.verticalWriteCheck   ->setChecked(cpu->isVerticalWrite ());
-  nesData_.spritePatternAddrEdit->setValue  (cpu->spritePatternAddr());
-  nesData_.screenPatternAddrEdit->setValue  (cpu->screenPatternAddr());
+  nesData_.nameTableEdit     ->setValue  (cpu->nameTable());
+  nesData_.verticalWriteCheck->setChecked(cpu->isVerticalWrite ());
+
   nesData_.screenVisibleCheck   ->setChecked(cpu->isScreenVisible ());
+  nesData_.screenPatternAddrEdit->setValue  (cpu->screenPatternAddr());
+
   nesData_.spritesVisibleCheck  ->setChecked(cpu->isSpritesVisible());
-  nesData_.hitInterruptCheck    ->setChecked(cpu->isHitInterrupt());
-  nesData_.blankInterruptCheck  ->setChecked(cpu->isBlankInterrupt());
-  nesData_.scrollVEdit          ->setValue  (cpu->scrollV());
-  nesData_.scrollHEdit          ->setValue  (cpu->scrollH());
+  nesData_.spritePatternAddrEdit->setValue  (cpu->spritePatternAddr());
+  nesData_.spriteSizeEdit       ->setValue  (cpu->spriteSize());
+//nesData_.hitInterruptCheck    ->setChecked(cpu->isSpriteInterrupt());
+
+  nesData_.imageMaskCheck ->setChecked(cpu->isImageMasked());
+  nesData_.spriteMaskCheck->setChecked(cpu->isSpriteMasked());
+
+  nesData_.blankInterruptCheck->setChecked(cpu->isBlankInterrupt());
+
+  nesData_.scrollVEdit->setValue  (cpu->scrollV());
+  nesData_.scrollHEdit->setValue  (cpu->scrollH());
+
+  //---
 
   auto *ppu = machine_->getPPU();
 
   ppuData_.debugReadCheck ->setChecked(ppu->isDebugRead ());
   ppuData_.debugWriteCheck->setChecked(ppu->isDebugWrite());
+
+  //---
 
   auto cart = machine_->getCart();
 

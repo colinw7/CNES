@@ -18,7 +18,7 @@ PPU(Machine *machine) :
 
   pixels_.resize(np);
 
-  memset(&pixels_[0], 0, np*sizeof(uchar));
+  memset(&pixels_[0], 0, np*sizeof(ushort));
 }
 
 PPU::
@@ -43,21 +43,15 @@ getByte(ushort addr) const
 
   // Pattern Table 0 (256x2x8, may be VROM)
   if      (addr < 0x1000) {
-    auto *cart = machine_->getCart();
+    uchar c = getVRAMByte(addr);
 
-    uchar c;
-
-    if (cart->getVRAMByte(addr, c))
-      return returnChar(c);
+    return returnChar(c);
   }
   // Pattern Table 1 (256x2x8, may be VROM)
   else if (addr < 0x2000) {
-    auto *cart = machine_->getCart();
+    uchar c = getVRAMByte(addr);
 
-    uchar c;
-
-    if (cart->getVRAMByte(addr, c))
-      return returnChar(c);
+    return returnChar(c);
   }
   // Name Table 0 (32x25 tiles)
   else if (addr < 0x23C0) {
@@ -103,6 +97,20 @@ getByte(ushort addr) const
   uchar c = mem_[addr & 0x3FFF];
 
   return returnChar(c);
+}
+
+uchar
+PPU::
+getVRAMByte(ushort addr) const
+{
+  auto *cart = machine_->getCart();
+
+  uchar c;
+
+  if (! cart->getVRAMByte(addr, c))
+    c = mem_[addr & 0x3FFF];
+
+  return c;
 }
 
 void
@@ -199,8 +207,18 @@ drawLine(int y)
 
   lineNum_ = y;
 
-  if (sprite0Line() == lineNum_)
-    spriteHit_ = true;
+  if (! spriteHit_) {
+    if (isSprite0Hit(lineNum_)) {
+      spriteHit_ = true;
+
+      auto *cpu = machine_->getCPU();
+
+      if (cpu->isSpriteInterrupt()) {
+        if (! cpu->isHalt() && ! cpu->inNMI())
+          cpu->resetNMI();
+      }
+    }
+  }
 
   // vertical sync
   if      (lineNum_ < s_vsyncLines) {
@@ -219,9 +237,9 @@ drawLine(int y)
 
     int y1 = lineNum_ - s_topMargin; // y pixel position (0 - 240)
 
-    int sy  = cpu->scrollV(); // scroll vertical
-    int syb = sy/8;           // scroll vertical bytes
-    int syo = sy - syb*8;     // scroll vertical byte pixel offset
+    int sy  = scrollV_;   // scroll vertical
+    int syb = sy/8;       // scroll vertical bytes
+    int syo = sy - syb*8; // scroll vertical byte pixel offset
 
     int iy  = y1/8;      // vertical byte index in associated char data
     int iby = y1 - iy*8; // sub pixel in vertical byte
@@ -310,15 +328,21 @@ drawLine(int y)
 
     // NMI on first vblank line (if enabled)
     if (lineNum_ == s_vblankLine) {
+      //cpu->resetScroll();
+
+      //---
+
       vblank_    = true;
       spriteHit_ = false;
-
-      auto *cpu = machine_->getCPU();
 
       if (cpu->isBlankInterrupt()) {
         if (! cpu->isHalt() && ! cpu->inNMI())
           cpu->resetNMI();
       }
+    }
+
+    if (lineNum_ == s_numLines - 1) {
+      scrollV_ = cpu->scrollV();
     }
   }
 
@@ -341,15 +365,14 @@ void
 PPU::
 drawCharLine(int x, int y, uchar c, uchar ac, uchar iby, uchar ix, uchar nx)
 {
-  auto *cpu  = machine_->getCPU();
-  auto *cart = machine_->getCart();
+  auto *cpu = machine_->getCPU();
 
   int y1 = y - iby; // adjust to top of char
 
   ushort p = cpu->screenPatternAddr() + c*16 + iby;
 
-  uchar c1; cart->getVRAMByte(p    , c1); // color bit 0
-  uchar c2; cart->getVRAMByte(p + 8, c2); // color bit 1
+  uchar c1 = getVRAMByte(p    ); // color bit 0
+  uchar c2 = getVRAMByte(p + 8); // color bit 1
 
   for (int ibx = ix; ibx < nx; ++ibx) {
     bool b1 = (c1 & (1 << (7 - ibx)));
@@ -451,17 +474,17 @@ drawSprites()
 //bool  masked       = cpu->isSpriteMasked();
 
   for (int i = 0; i < 64; ++i) {
-    int i1 = spriteAddr + 4*i;
+    int ispriteAddr = spriteAddr + 4*i;
 
-    if (i1 > 252) // out of bounds
+    if (ispriteAddr > 252) // out of bounds
       break;
 
-    int pattern = cpu->spriteMem(i1 + 1);
+    int pattern = cpu->spriteMem(ispriteAddr + 1);
 
-    int x = cpu->spriteMem(i1 + 3);
-    int y = cpu->spriteMem(i1 + 0) + 1; // next line
+    int x = cpu->spriteMem(ispriteAddr + 3);
+    int y = cpu->spriteMem(ispriteAddr + 0) + 1; // next line
 
-    uchar m2 = cpu->spriteMem(i1 + 2);
+    uchar m2 = cpu->spriteMem(ispriteAddr + 2);
 
     uchar c1     = (m2 & 0x03) << 2;
 //  bool  behind = m2 & 0x20;
@@ -494,12 +517,12 @@ drawSpritesOnLine(int y)
   VisibleSprites visibleSprites;
 
   for (int i = 0; i < 64; ++i) {
-    int i1 = spriteAddr + 4*i;
+    int ispriteAddr = spriteAddr + 4*i;
 
-    if (i1 > 252) // out of bounds
+    if (ispriteAddr > 252) // out of bounds
       break;
 
-    int y1 = cpu->spriteMem(i1 + 0) + 1; // top
+    int y1 = cpu->spriteMem(ispriteAddr + 0) + 1; // top
     int y2 = (y1 + (doubleHeight ? 16 : 8));
 
     if (y2 < y || y1 > y)
@@ -531,16 +554,16 @@ drawSpriteLine(int i, int y)
 
   //---
 
-  int i1 = spriteAddr + 4*i;
+  int ispriteAddr = spriteAddr + 4*i;
 
   //---
 
-  int pattern = cpu->spriteMem(i1 + 1);
+  int pattern = cpu->spriteMem(ispriteAddr + 1);
 
-  int x  = cpu->spriteMem(i1 + 3);
-  int y1 = cpu->spriteMem(i1 + 0) + 1; // top
+  int x  = cpu->spriteMem(ispriteAddr + 3);
+  int y1 = cpu->spriteMem(ispriteAddr + 0) + 1; // top
 
-  uchar m2 = cpu->spriteMem(i1 + 2);
+  uchar m2 = cpu->spriteMem(ispriteAddr + 2);
 
   uchar c1     = (m2 & 0x03) << 2;
 //bool  behind = m2 & 0x20;
@@ -558,8 +581,7 @@ void
 PPU::
 drawSpriteCharLine(int x, int y, uchar c, int iby, uchar ac)
 {
-  auto *cpu  = machine_->getCPU();
-  auto *cart = machine_->getCart();
+  auto *cpu = machine_->getCPU();
 
   ushort p;
 
@@ -568,8 +590,8 @@ drawSpriteCharLine(int x, int y, uchar c, int iby, uchar ac)
   else
     p = cpu->spritePatternAltAddr() + c*16 + iby - 8;
 
-  uchar c1; cart->getVRAMByte(p    , c1);
-  uchar c2; cart->getVRAMByte(p + 8, c2);
+  uchar c1 = getVRAMByte(p    ); // color bit 0
+  uchar c2 = getVRAMByte(p + 8); // color bit 1
 
   for (int ibx = 0; ibx < 8; ++ibx, ++x) {
     if (x < 0 || x >= s_visiblePixels)
@@ -594,8 +616,21 @@ drawColorPixel(int x, int y, uchar color)
 
   int ind = y*s_visiblePixels + x;
 
-  if (pixels_[ind] != color) {
-    pixels_[ind] = color;
+  auto *cpu = machine_->getCPU();
+
+  if (cpu->isGrayScale())
+    color &= 0x30;
+
+  uchar ec { 0 };
+
+  if (cpu->isEmphasizeRed  ()) ec |= 0x01;
+  if (cpu->isEmphasizeGreen()) ec |= 0x02;
+  if (cpu->isEmphasizeBlue ()) ec |= 0x04;
+
+  ushort pixel = (ec << 8) | color;
+
+  if (pixels_[ind] != pixel) {
+    pixels_[ind] = pixel;
 
     //---
 
@@ -605,9 +640,9 @@ drawColorPixel(int x, int y, uchar color)
   }
 }
 
-int
+bool
 PPU::
-sprite0Line() const
+isSprite0Hit(int y) const
 {
   // Sprite 0 hit does not trigger in any area where the background or sprites are hidden
 
@@ -616,11 +651,41 @@ sprite0Line() const
   bool visible = cpu->isSpritesVisible();
 
   if (! visible)
-    return -1;
+    return false;
 
-  uchar spriteAddr = cpu->spriteAddr();
+  uchar spriteAddr   = cpu->spriteAddr();
+  bool  doubleHeight = cpu->isSpriteDoubleHeight();
 
-  return cpu->spriteMem(spriteAddr) + 1; // y
+  int y1 = cpu->spriteMem(spriteAddr + 0) + 1; // top
+  int y2 = (y1 + (doubleHeight ? 16 : 8));
+
+  if (y < y1 || y > y2)
+    return false;
+
+  int pattern = cpu->spriteMem(spriteAddr + 1);
+
+  int iby = y - y1;
+
+  ushort p;
+
+  if (iby < 8)
+    p = cpu->spritePatternAddr() + pattern*16 + iby;
+  else
+    p = cpu->spritePatternAltAddr() + pattern*16 + iby - 8;
+
+  uchar c1 = getVRAMByte(p    ); // color bit 0
+  uchar c2 = getVRAMByte(p + 8); // color bit 1
+
+  for (int ibx = 0; ibx < 8; ++ibx) {
+    // get color bits 0 and 1 from sprite pattern
+    bool b1 = (c1 & (1 << (7 - ibx)));
+    bool b2 = (c2 & (1 << (7 - ibx)));
+
+    if (b1 || b2)
+      return true;
+  }
+
+  return false;
 }
 
 }
