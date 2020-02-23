@@ -68,8 +68,14 @@ addLeftWidgets()
 
   //---
 
+  auto cpu = machine_->getCPU();
+
+  cpu->setDebugger(true);
+
   ppuMemData_.memArea->setFont(getFixedFont());
   ppuMemData_.memArea->setMemoryText();
+
+  cpu->setDebugger(false);
 
   //---
 
@@ -88,10 +94,28 @@ addRightWidgets()
 
   //---
 
+  auto addColHexEdit2 = [&](QGridLayout *layout, const QString &name, int row, int &col) {
+    auto *hlayout = new QHBoxLayout;
+    hlayout->addWidget(CQUtil::makeLabelWidget<QLabel>(name));
+    auto edit = new CQ6502HexEdit(2);
+    hlayout->addWidget(edit);
+    layout->addLayout(hlayout, row, col); ++col;
+    return edit;
+  };
+
   auto addHexEdit2 = [&](QGridLayout *layout, const QString &name, int &row) {
     auto edit = new CQ6502HexEdit(2);
     layout->addWidget(CQUtil::makeLabelWidget<QLabel>(name), row, 0);
     layout->addWidget(edit, row, 1); ++row;
+    return edit;
+  };
+
+  auto addColHexEdit4 = [&](QGridLayout *layout, const QString &name, int row, int &col) {
+    auto *hlayout = new QHBoxLayout;
+    hlayout->addWidget(CQUtil::makeLabelWidget<QLabel>(name));
+    auto edit = new CQ6502HexEdit(4);
+    hlayout->addWidget(edit);
+    layout->addLayout(hlayout, row, col); ++col;
     return edit;
   };
 
@@ -102,9 +126,21 @@ addRightWidgets()
     return edit;
   };
 
-  auto addCheck = [&](QGridLayout *layout, const QString &name, int &row) {
+  auto addColLabel = [&](QGridLayout *layout, const QString &name, int row, int &col) {
+    auto label = CQUtil::makeLabelWidget<QLabel>(name, "label");
+    layout->addWidget(label, row, col, 1, 1); ++col;
+    return label;
+  };
+
+  auto addColCheck = [&](QGridLayout *layout, const QString &name, int row, int &col,
+                         int ncols=1) {
     auto check = CQUtil::makeLabelWidget<QCheckBox>(name);
-    layout->addWidget(check, row, 0, 1, 2); ++row;
+    layout->addWidget(check, row, col, 1, ncols); col += ncols;
+    return check;
+  };
+
+  auto addCheck = [&](QGridLayout *layout, const QString &name, int &row) {
+    int col = 0; auto check = addColCheck(layout, name, row, col, 2); ++row;
     return check;
   };
 
@@ -132,34 +168,51 @@ addRightWidgets()
 
   auto nesLayout = CQUtil::makeLayout<QGridLayout>(nesData_.group, 2, 2);
 
-  int nesRow = 0;
+  int nesRow = 0, nesCol = 0;
 
   auto nesChecks = addDebugReadWriteChecks(nesLayout, nesRow);
 
   nesData_.debugReadCheck  = nesChecks.first;
   nesData_.debugWriteCheck = nesChecks.second;
 
-  nesData_.illegalJumpCheck = addCheck(nesLayout, "Stop on Illegal Jump", nesRow);
-  nesData_.nmiCheck         = addCheck(nesLayout, "Stop on NMI"         , nesRow);
+  nesCol = 0;
+  (void)                      addColLabel(nesLayout, "Stop on"     , nesRow, nesCol);
+  nesData_.illegalJumpCheck = addColCheck(nesLayout, "Illegal Jump", nesRow, nesCol);
+  nesData_.nmiCheck         = addColCheck(nesLayout, "NMI"         , nesRow, nesCol); ++nesRow;
 
   nesData_.nameTableEdit      = addHexEdit2(nesLayout, "Name Table", nesRow);
   nesData_.verticalWriteCheck = addCheck   (nesLayout, "Vertical Write", nesRow);
 
-  nesData_.screenVisibleCheck    = addCheck   (nesLayout, "Screen Visible", nesRow);
-  nesData_.screenPatternAddrEdit = addHexEdit4(nesLayout, "Screen Pattern Addr", nesRow);
+  nesCol = 0;
+  (void)                           addColLabel   (nesLayout, "Screen" , nesRow, nesCol);
+  nesData_.screenVisibleCheck    = addColCheck   (nesLayout, "Visible", nesRow, nesCol);
+  nesData_.screenPatternAddrEdit = addColHexEdit4(nesLayout, "Addr"   , nesRow, nesCol); ++nesRow;
 
-  nesData_.spritesVisibleCheck   = addCheck   (nesLayout, "Sprites Visible", nesRow);
-  nesData_.spritePatternAddrEdit = addHexEdit4(nesLayout, "Sprite Pattern Addr", nesRow);
-  nesData_.spriteSizeEdit        = addHexEdit2(nesLayout, "Sprite Size", nesRow);
-//nesData_.hitInterruptCheck     = addCheck   (nesLayout, "Sprite Hit Interrupt", nesRow);
+//nesData_.screenVisibleCheck    = addCheck   (nesLayout, "Screen Visible", nesRow);
+//nesData_.screenPatternAddrEdit = addHexEdit4(nesLayout, "Screen Pattern Addr", nesRow);
 
-  nesData_.imageMaskCheck  = addCheck(nesLayout, "Image Mask" , nesRow);
-  nesData_.spriteMaskCheck = addCheck(nesLayout, "Sprite Mask", nesRow);
+  nesCol = 0;
+  (void)                           addColLabel   (nesLayout, "Sprites", nesRow, nesCol);
+  nesData_.spritesVisibleCheck   = addColCheck   (nesLayout, "Visible", nesRow, nesCol);
+  nesData_.spritePatternAddrEdit = addColHexEdit4(nesLayout, "Addr"   , nesRow, nesCol); ++nesRow;
+
+//nesData_.spritesVisibleCheck   = addCheck   (nesLayout, "Sprites Visible", nesRow);
+//nesData_.spritePatternAddrEdit = addHexEdit4(nesLayout, "Sprite Pattern Addr", nesRow);
+
+  nesData_.spriteSizeEdit    = addHexEdit2(nesLayout, "Sprite Size", nesRow);
+//nesData_.hitInterruptCheck = addCheck   (nesLayout, "Sprite Hit Interrupt", nesRow);
+
+  nesCol = 0;
+  (void)                     addColLabel(nesLayout, "Mark"  , nesRow, nesCol);
+  nesData_.imageMaskCheck  = addColCheck(nesLayout, "Image" , nesRow, nesCol);
+  nesData_.spriteMaskCheck = addColCheck(nesLayout, "Sprite", nesRow, nesCol); ++nesRow;
 
   nesData_.blankInterruptCheck = addCheck(nesLayout, "VBlank Interrupt", nesRow);
 
-  nesData_.scrollVEdit = addHexEdit2(nesLayout, "Scroll V", nesRow);
-  nesData_.scrollHEdit = addHexEdit2(nesLayout, "Scroll H", nesRow);
+  nesCol = 0;
+  (void)                 addColLabel   (nesLayout, "Scroll", nesRow, nesCol);
+  nesData_.scrollVEdit = addColHexEdit2(nesLayout, "V"     , nesRow, nesCol);
+  nesData_.scrollHEdit = addColHexEdit2(nesLayout, "H"     , nesRow, nesCol); ++nesRow;
 
   nesLayout->setColumnStretch(3, 1);
   nesLayout->setRowStretch(nesRow, 1);
@@ -220,9 +273,19 @@ addRightWidgets()
   cartData_.prgRamSizeEdit = addHexEdit4(cartLayout, "RAM Size", cartRow);
   cartData_.mapperEdit     = addHexEdit2(cartLayout, "Mapper", cartRow);
 
+  int cartCol = 0;
+  (void)               addColLabel   (cartLayout, "Sprites", cartRow, cartCol);
+  cartData_.chrLEdit = addColHexEdit2(cartLayout, "Lower"  , cartRow, cartCol);
+  cartData_.chrHEdit = addColHexEdit2(cartLayout, "Upper"  , cartRow, cartCol); ++cartRow;
+
   cartLayout->setRowStretch(cartRow, 1);
 
   connect(cartData_.debugCheck, SIGNAL(stateChanged(int)), this, SLOT(cartDebugSlot(int)));
+
+  connect(cartData_.chrLEdit, SIGNAL(valueChanged(unsigned int)),
+          this, SLOT(nesChrLSlot(unsigned int)));
+  connect(cartData_.chrHEdit, SIGNAL(valueChanged(unsigned int)),
+          this, SLOT(nesChrHSlot(unsigned int)));
 
   addRightWidget(cartData_.group, "Cartridge");
 
@@ -263,6 +326,24 @@ updatePPUSlot(ushort addr, ushort /*len*/)
 
     ppuMemData_.memArea->updateText(addr);
   }
+}
+
+void
+CQNESDbg::
+nesChrLSlot(unsigned int page)
+{
+  auto cart = machine_->getCart();
+
+  cart->setChrLPage(page);
+}
+
+void
+CQNESDbg::
+nesChrHSlot(unsigned int page)
+{
+  auto cart = machine_->getCart();
+
+  cart->setChrHPage(page);
 }
 
 void
@@ -324,32 +405,31 @@ CQNESDbg::
 updateNESSlot()
 {
   auto *cpu = machine_->getCPU();
+  auto *ppu = machine_->getPPU();
 
   nesData_.debugReadCheck ->setChecked(cpu->isDebugRead ());
   nesData_.debugWriteCheck->setChecked(cpu->isDebugWrite());
 
-  nesData_.nameTableEdit     ->setValue  (cpu->nameTable());
-  nesData_.verticalWriteCheck->setChecked(cpu->isVerticalWrite ());
+  nesData_.nameTableEdit     ->setValue  (ppu->nameTable());
+  nesData_.verticalWriteCheck->setChecked(ppu->isVerticalWrite ());
 
-  nesData_.screenVisibleCheck   ->setChecked(cpu->isScreenVisible ());
-  nesData_.screenPatternAddrEdit->setValue  (cpu->screenPatternAddr());
+  nesData_.screenVisibleCheck   ->setChecked(ppu->isScreenVisible ());
+  nesData_.screenPatternAddrEdit->setValue  (ppu->screenPatternAddr());
 
-  nesData_.spritesVisibleCheck  ->setChecked(cpu->isSpritesVisible());
-  nesData_.spritePatternAddrEdit->setValue  (cpu->spritePatternAddr());
-  nesData_.spriteSizeEdit       ->setValue  (cpu->spriteSize());
-//nesData_.hitInterruptCheck    ->setChecked(cpu->isSpriteInterrupt());
+  nesData_.spritesVisibleCheck  ->setChecked(ppu->isSpritesVisible());
+  nesData_.spritePatternAddrEdit->setValue  (ppu->spritePatternAddr());
+  nesData_.spriteSizeEdit       ->setValue  (ppu->spriteSize());
+//nesData_.hitInterruptCheck    ->setChecked(ppu->isSpriteInterrupt());
 
-  nesData_.imageMaskCheck ->setChecked(cpu->isImageMasked());
-  nesData_.spriteMaskCheck->setChecked(cpu->isSpriteMasked());
+  nesData_.imageMaskCheck ->setChecked(ppu->isImageMasked());
+  nesData_.spriteMaskCheck->setChecked(ppu->isSpriteMasked());
 
-  nesData_.blankInterruptCheck->setChecked(cpu->isBlankInterrupt());
+  nesData_.blankInterruptCheck->setChecked(ppu->isBlankInterrupt());
 
-  nesData_.scrollVEdit->setValue  (cpu->scrollV());
-  nesData_.scrollHEdit->setValue  (cpu->scrollH());
+  nesData_.scrollVEdit->setValue  (ppu->scrollV());
+  nesData_.scrollHEdit->setValue  (ppu->scrollH());
 
   //---
-
-  auto *ppu = machine_->getPPU();
 
   ppuData_.debugReadCheck ->setChecked(ppu->isDebugRead ());
   ppuData_.debugWriteCheck->setChecked(ppu->isDebugWrite());

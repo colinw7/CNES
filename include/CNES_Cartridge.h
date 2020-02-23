@@ -32,6 +32,12 @@ class Cartridge {
 
   ushort prgRamSize() const { return prgRamSize_; }
 
+  int chrLPage() const { return chrLPage_; }
+  void setChrLPage(int i) { chrLPage_ = i; }
+
+  int chrHPage() const { return chrHPage_; }
+  void setChrHPage(int i) { chrHPage_ = i; }
+
   bool getLowerROMByte(ushort addr, uchar &c) const;
   bool getUpperROMByte(ushort addr, uchar &c) const;
 
@@ -108,10 +114,13 @@ class Cartridge {
     uchar regValue { 0 };
 
     uchar mirror    { 0 };
-    uchar romMode   { 0 };
-    uchar vromMode  { 0 };
-    uchar vromBank0 { 0 };
-    uchar vromBank1 { 0 };
+
+    uchar romBank   { 1 };
+    uchar romSize   { 0 };
+
+    uchar vromMode    { 0 };
+    uchar vromBank[2] { };
+
     uchar romPage   { 0 };
     bool  ramEnable { false };
   };
@@ -140,6 +149,9 @@ class Cartridge {
   Mapper1Data mapper1Data_;
   Mapper2Data mapper2Data_;
   Ver2Data    ver2Data;
+
+  int chrLPage_ { -1 };
+  int chrHPage_ { -1 };
 
   mutable int currentTile_;
 };

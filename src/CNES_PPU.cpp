@@ -12,13 +12,20 @@ PPU(Machine *machine) :
 {
   assert(machine_);
 
+  // init ppu memory
   mem_ = new uchar [0x4000]; // 16k
 
+  // init screen pixels
   int np = s_visibleLines*s_visiblePixels;
 
-  pixels_.resize(np);
+  screenPixels_.resize(np);
 
-  memset(&pixels_[0], 0, np*sizeof(ushort));
+  memset(&screenPixels_[0], 0, np*sizeof(ushort));
+
+  // init line pixels
+  linePixels_.resize(s_visiblePixels);
+
+  memset(&linePixels_[0], 0, s_visiblePixels*sizeof(uchar));
 }
 
 PPU::
@@ -67,12 +74,20 @@ getByte(ushort addr) const
   }
   // Name Table 2 (32x25 tiles)
   else if (addr < 0x2BC0) {
+    auto *cpu = machine_->getCPU();
+
+    if (! cpu->isDebugger())
+      std::cerr << "PPU::getByte (Name Table 2) " << std::hex << addr << "\n";
   }
   // Attribute Table 2
   else if (addr < 0x2C00) {
   }
   // Name Table 3 (32x25 tiles)
   else if (addr < 0x2FC0) {
+    auto *cpu = machine_->getCPU();
+
+    if (! cpu->isDebugger())
+      std::cerr << "PPU::getByte (Name Table 3) " << std::hex << addr << "\n";
   }
   // Attribute Table 3
   else if (addr < 0x3000) {
@@ -113,6 +128,181 @@ getVRAMByte(ushort addr) const
   return c;
 }
 
+uchar
+PPU::
+getControlByte(ushort addr) const
+{
+  auto *cpu = machine_->getCPU();
+
+  uchar c = 0x00;
+
+  // PPU Control Register 1 (PPUCTRL)
+  if      (addr == 0x2000) {
+    if (! cpu->isDebugger())
+      std::cerr << "Read PPUCTRL Unhandled\n";
+  }
+  // PPU Control Register 2 (PPUMASK)
+  else if (addr == 0x2001) {
+    if (! cpu->isDebugger())
+      std::cerr << "Read PPUMASK Unhandled\n";
+  }
+  // PPU Status Register (PPUSTATUS)
+  // (read only)
+  else if (addr == 0x2002) {
+    // Init width least significant bits previously written into a PPU register
+    c = ppuVal_ & 0x1F;
+
+    // TODO: Sprite overflow on bit 5
+
+    if (spritesOverflow_) c |= 0x20;
+    if (isSpriteHit   ()) c |= 0x40;
+    if (isVBlank      ()) c |= 0x80;
+
+    // reset on read
+    if (! cpu->isDebugger()) {
+      auto *th = const_cast<PPU *>(this);
+
+    //th->setSpriteHit(false);
+      th->setVBlank   (false);
+
+      byteId_ = 0;
+    }
+  }
+  // Sprite Memory Address (OAMADDR)
+  else if (addr == 0x2003) {
+    if (! cpu->isDebugger())
+      std::cerr << "Read OAMADDR Unhandled\n";
+  }
+  // Sprite Memory Data (OAMDATA)
+  else if (addr == 0x2004) {
+    if (! cpu->isDebugger()) {
+      c = spriteMem_[spriteAddr_++];
+
+      if (isDebugRead() && ! in_ppu_)
+        std::cerr << "CPU::getSpriteByte " <<
+          std::hex << addr << " " << std::hex << int(c) << "\n";
+    }
+    else {
+      c = spriteMem_[spriteAddr_];
+    }
+  }
+  // Background Scroll (PPUSCROLL)
+  else if (addr == 0x2005) {
+    if (! cpu->isDebugger())
+      std::cerr << "Read PPUSCROLL Unhandled\n";
+  }
+  // PPU Memory Address (PPUADDR)
+  else if (addr == 0x2006) {
+    if (! cpu->isDebugger())
+      std::cerr << "Read PPUADDR Unhandled\n";
+  }
+  // PPU Memory Data (PPUDATA)
+  else if (addr == 0x2007) {
+    if (! cpu->isDebugger()) {
+      if (ppuAddr_ < 0x3F00) {
+        c = ppuBuffer_;
+
+        ppuBuffer_ = getByte(ppuAddr_);
+      }
+      else {
+        c = getByte(ppuAddr_);
+
+        ppuBuffer_ = getByte(ppuAddr_); // TODO: mirrored nametable data ?
+      }
+
+      ++ppuAddr_;
+    }
+    else
+      c = ppuBuffer_;
+  }
+  else {
+    if (! cpu->isDebugger())
+      std::cerr << "Read PPU Unhandled\n";
+  }
+
+  return c;
+}
+
+void
+PPU::
+setControlByte(ushort addr, uchar c)
+{
+  // PPU Control Register 1 (PPUCTRL)
+  if      (addr == 0x2000) {
+    // c & 0x01 : Add 256 to the X scroll position
+    // c & 0x02 : Add 240 to the Y scroll position
+    nameTable_     = (c & 0x03);                // TODO: mirroring ?
+    nameTableAddr_ = 0x2000 + nameTable_*0x400; // TODO: mirroring ?
+
+    verticalWrite_      = (c & 0x04) >> 2;
+    spritePatternAddr_  = (c & 0x08 ? 0x1000 : 0x0000);
+    screenPatternAddr_  = (c & 0x10 ? 0x1000 : 0x0000);
+    spriteDoubleHeight_ = (c & 0x20) >> 5;
+//  spriteInterrupt_    = (c & 0x40) >> 6; // TODO: wrong
+//  ppuMasterSlave_     = (c & 0x40) >> 6;
+    blankInterrupt_     = (c & 0x80) >> 7;
+
+    spritePatternAltAddr_ = (spritePatternAddr_ == 0x1000 ? 0x0000 : 0x1000);
+  }
+  // PPU Control Register 2 (PPUMASK)
+  else if (addr == 0x2001) {
+    grayScale_      = (c & 0x01);
+    imageMask_      = (c & 0x02) >> 1;
+    spriteMask_     = (c & 0x04) >> 2;
+    screenVisible_  = (c & 0x08) >> 3;
+    spritesVisible_ = (c & 0x10) >> 4;
+    emphasizeRed_   = (c & 0x20) >> 5;
+    emphasizeGreen_ = (c & 0x40) >> 6;
+    emphasizeBlue_  = (c & 0x80) >> 7;
+  }
+  // PPU Status Register (PPUSTATUS)
+  else if (addr == 0x2002) {
+    std::cerr << "Write PPUSTATUS Unhandled\n";
+  }
+  // Sprite Memory Address (OAMADDR)
+  else if (addr == 0x2003) {
+    setSpriteAddr(c);
+  }
+  // Sprite Memory Data (OAMDATA)
+  else if (addr == 0x2004) {
+    spriteMem_[spriteAddr_++] = c;
+
+    spritesChanged();
+  }
+  // Background Scroll (PPUSCROLL)
+  // TODO: shares internal register with PPUADDR ?
+  else if (addr == 0x2005) {
+    // ignore vertical scroll value if >= 240
+    if (byteId_ != 1 || c < 0xF0)
+      scrollHV_[byteId_] = c;
+
+    byteId_ = 1 - byteId_;
+  }
+  // PPU Memory Address (PPUADDR)
+  else if (addr == 0x2006) {
+    ppuVal_ = c;
+
+    ppuAddrHL_[byteId_] = ppuVal_;
+
+    byteId_ = 1 - byteId_;
+
+    ppuAddr_ = (ppuAddrHL_[0] << 8) | ppuAddrHL_[1];
+    ppuAddr_ &= 0x3FFF;
+  }
+  // PPU Memory Data (PPUDATA)
+  else if (addr == 0x2007) {
+    setByte(ppuAddr_, c);
+
+    if (verticalWrite_)
+      ppuAddr_ += s_hChars;
+    else
+      ++ppuAddr_;
+  }
+  else {
+    std::cerr << "Write PPU Unhandled\n";
+  }
+}
+
 void
 PPU::
 setByte(ushort addr, uchar c)
@@ -123,14 +313,35 @@ setByte(ushort addr, uchar c)
     std::cerr << "PPU::setByte " <<
           std::hex << addr << " " << std::hex << int(c) << "\n";
 
-  // The $3F00 and $3F10 locations in VRAM mirror each other (i.e. it
-  // is the same memory cell) and define the background color of the picture.
-  if (addr == 0x3F10)
-    addr = 0x3F00;
+  // Pattern Table 0 (256x2x8, may be VROM)
+  if      (addr < 0x1000) {
+    mem_[addr & 0x3FFF] = c;
+  }
+  // Pattern Table 1 (256x2x8, may be VROM)
+  else if (addr < 0x2000) {
+    mem_[addr & 0x3FFF] = c;
+  }
+  else {
+    // The $3F00 and $3F10 locations in VRAM mirror each other (i.e. it
+    // is the same memory cell) and define the background color of the picture.
+    if (addr == 0x3F10)
+      addr = 0x3F00;
 
-  mem_[addr & 0x3FFF] = c;
+    mem_[addr & 0x3FFF] = c;
+  }
 
   memChanged(addr, 1);
+}
+
+void
+PPU::
+copySpriteMem(uchar c)
+{
+  auto *cpu = machine_->getCPU();
+
+  cpu->memget(c << 8, &spriteMem_[0], 0x100);
+
+  spritesChanged();
 }
 
 void
@@ -164,9 +375,7 @@ void
 PPU::
 drawNameTable()
 {
-  auto *cpu = machine_->getCPU();
-
-  ushort nameTableAddr = cpu->nameTableAddr(); // TODO: mirroring
+  ushort nameTableAddr = nameTableAddr(); // TODO: mirroring
 
   //---
 
@@ -182,7 +391,7 @@ drawNameTable()
   for (int iy = 0; iy < 32; ++iy) {
     int y = iy*8;
 
-    for (int ix = 0; ix < 32; ++ix, ++nameTableAddr) {
+    for (int ix = 0; ix < s_hChars; ++ix, ++nameTableAddr) {
       int x = ix*8;
 
       //---
@@ -205,44 +414,48 @@ drawLine(int y)
 {
   in_ppu_ = true;
 
-  lineNum_ = y;
+  scanLineNum_  = y;
+  pixelLineNum_ = scanLineNum_ - s_topMargin;
 
+#if 0
   if (! spriteHit_) {
-    if (isSprite0Hit(lineNum_)) {
+    if (isSprite0Hit(scanLineNum_)) {
       spriteHit_ = true;
 
-      auto *cpu = machine_->getCPU();
+      if (isSpriteInterrupt()) {
+        auto *cpu = machine_->getCPU();
 
-      if (cpu->isSpriteInterrupt()) {
         if (! cpu->isHalt() && ! cpu->inNMI())
           cpu->resetNMI();
       }
     }
   }
+#endif
 
   // vertical sync
-  if      (lineNum_ < s_vsyncLines) {
+  if      (scanLineNum_ < s_vsyncLines) {
   }
   // vblank 1
-  else if (lineNum_ < s_topMargin) {
+  else if (scanLineNum_ < s_topMargin) {
   }
   // screen
-  else if (lineNum_ < s_topMargin + s_visibleLines) {
+  else if (scanLineNum_ < s_topMargin + s_visibleLines) {
     // NOTE: sprite evaluation starts at line 65 (3 + 14 + 48 ?)
-    auto *cpu = machine_->getCPU();
-
     vblank_ = false;
 
-    //---
+    // reset line pixels to bg
+    color0_ = palette(0);
 
-    int y1 = lineNum_ - s_topMargin; // y pixel position (0 - 240)
+    memset(&linePixels_[0], color0_, s_visiblePixels*sizeof(uchar));
+
+    //---
 
     int sy  = scrollV_;   // scroll vertical
     int syb = sy/8;       // scroll vertical bytes
     int syo = sy - syb*8; // scroll vertical byte pixel offset
 
-    int iy  = y1/8;      // vertical byte index in associated char data
-    int iby = y1 - iy*8; // sub pixel in vertical byte
+    int iy  = pixelLineNum_/8;      // vertical byte index in associated char data
+    int iby = pixelLineNum_ - iy*8; // sub pixel in vertical byte
 
     int iy1  = iy - syb;  // adjusted vertical byte index in associated char data
     int iby1 = iby - syo; // adjusted sub pixel in vertical byte
@@ -265,11 +478,11 @@ drawLine(int y)
 
     int x1 = x - s_leftMargin;
 
-    if (cpu->isScreenVisible()) {
-      int sx   = cpu->scrollH(); // scroll horizontal
-      int sxb  = sx/8;           // scroll horizontal bytes
-      int sxo  = sx - sxb*8;     // scroll horizontal byte pixel offset
-      int isxo = 8 - sxo;        // inverse of scroll horizontal byte pixel offset
+    if (isScreenVisible()) {
+      int sx   = scrollH();  // scroll horizontal
+      int sxb  = sx/8;       // scroll horizontal bytes
+      int sxo  = sx - sxb*8; // scroll horizontal byte pixel offset
+      int isxo = 8 - sxo;    // inverse of scroll horizontal byte pixel offset
 
       // draw partial left character
       if (sxo > 0) {
@@ -279,10 +492,10 @@ drawLine(int y)
 
         //---
 
-        drawCharLine(x1 - isxo, y1, c, ac, iby1, isxo, 8);
+        drawCharLine(x1 - isxo, pixelLineNum_, c, ac, iby1, isxo, 8);
       }
 
-      for (int ix = 0; ix < 32; ++ix, x1 += 8) {
+      for (int ix = 0; ix < s_hChars; ++ix, x1 += 8) {
         int ix1 = ix - sxb; // horizontal byte index in associated char data
 
         //---
@@ -294,23 +507,25 @@ drawLine(int y)
         //---
 
         if (ix == 31 && sxo > 0)
-          drawCharLine(x1 + sxo, y1, c, ac, iby1, 0, isxo);
+          drawCharLine(x1 + sxo, pixelLineNum_, c, ac, iby1, 0, isxo);
         else {
-          drawCharLine(x1 + sxo, y1, c, ac, iby1, 0, 8);
+          drawCharLine(x1 + sxo, pixelLineNum_, c, ac, iby1, 0, 8);
         }
       }
     }
     else {
       // blank line
-      uchar color = palette(0);
+      for (int ix = 0; ix < 256; ++ix, ++x1) {
+        if (imageMask_ && ix < 8)
+          continue;
 
-      for (int ix = 0; ix < 256; ++ix, ++x1)
-        drawColorPixel(ix, y1, color);
+        drawLinePixel(ix, pixelLineNum_, color0_);
+      }
     }
 
     //---
 
-    drawSpritesOnLine(y1);
+    drawSpritesOnLine(pixelLineNum_);
 
     //---
 
@@ -322,27 +537,27 @@ drawLine(int y)
   }
   // vblank 2
   else {
-    auto *cpu = machine_->getCPU();
-
-    cpu->setSpriteAddr(0); // reset
+    setSpriteAddr(0); // reset
 
     // NMI on first vblank line (if enabled)
-    if (lineNum_ == s_vblankLine) {
-      //cpu->resetScroll();
+    if (scanLineNum_ == s_vblankLine) {
+    //resetScroll();
 
       //---
 
       vblank_    = true;
       spriteHit_ = false;
 
-      if (cpu->isBlankInterrupt()) {
+      if (isBlankInterrupt()) {
+        auto *cpu = machine_->getCPU();
+
         if (! cpu->isHalt() && ! cpu->inNMI())
           cpu->resetNMI();
       }
     }
 
-    if (lineNum_ == s_numLines - 1) {
-      scrollV_ = cpu->scrollV();
+    if (scanLineNum_ == s_numLines - 1) {
+      scrollV_ = scrollV();
     }
   }
 
@@ -365,11 +580,9 @@ void
 PPU::
 drawCharLine(int x, int y, uchar c, uchar ac, uchar iby, uchar ix, uchar nx)
 {
-  auto *cpu = machine_->getCPU();
-
   int y1 = y - iby; // adjust to top of char
 
-  ushort p = cpu->screenPatternAddr() + c*16 + iby;
+  ushort p = screenPatternAddr() + c*16 + iby;
 
   uchar c1 = getVRAMByte(p    ); // color bit 0
   uchar c2 = getVRAMByte(p + 8); // color bit 1
@@ -380,7 +593,10 @@ drawCharLine(int x, int y, uchar c, uchar ac, uchar iby, uchar ix, uchar nx)
 
     uchar color = palette((b1 | (b2 << 1)) | ac);
 
-    drawColorPixel(x + ibx, y1 + iby, color);
+    if (imageMask_ && x + ibx < 8)
+      continue;
+
+    drawLinePixel(x + ibx, y1 + iby, color);
   }
 }
 
@@ -388,19 +604,17 @@ uchar
 PPU::
 calcNameTableTile(int iy, int ix) const
 {
-  if (iy < 0) iy += 30;
-  if (ix < 0) ix += 32;
+  if (iy < 0) iy += s_vChars;
+  if (ix < 0) ix += s_hChars;
 
   assert(ix >= 0 && iy >= 0);
 
-  auto *cpu = machine_->getCPU();
-
   // 32 bytes per line in name table (8 pixels high)
-  ushort offset = 32*iy + ix;
+  ushort offset = s_hChars*iy + ix;
 
   assert(offset < 0x03C0);
 
-  ushort nameTableAddr = cpu->nameTableAddr() + offset;
+  ushort nameTableAddr = this->nameTableAddr() + offset;
 
   return getByte(nameTableAddr); // tile number
 }
@@ -409,21 +623,19 @@ uchar
 PPU::
 calcAttrTableColor(int iy, int ix) const
 {
-  if (iy < 0) iy += 30;
-  if (ix < 0) ix += 32;
+  if (iy < 0) iy += s_vChars;
+  if (ix < 0) ix += s_hChars;
 
   assert(ix >= 0 && iy >= 0);
 
   int iay = iy >> 2;
   int iax = ix >> 2;
 
-  auto *cpu = machine_->getCPU();
-
   ushort offset = 0x03C0 + iay*8 + iax;
 
   assert(offset < 0x0400);
 
-  ushort attrTableAddr = cpu->nameTableAddr() + offset;
+  ushort attrTableAddr = this->nameTableAddr() + offset;
 
   uchar ac = getByte(attrTableAddr);
 
@@ -460,55 +672,59 @@ void
 PPU::
 drawSprites()
 {
-  auto *cpu = machine_->getCPU();
-
-  bool visible = cpu->isSpritesVisible();
+  bool visible = isSpritesVisible();
   if (! visible) return;
 
   auto *cart = machine_->getCart();
 
   //---
 
-  uchar spriteAddr   = cpu->spriteAddr();
-  bool  doubleHeight = cpu->isSpriteDoubleHeight();
-//bool  masked       = cpu->isSpriteMasked();
-
   for (int i = 0; i < 64; ++i) {
-    int ispriteAddr = spriteAddr + 4*i;
+    SpriteData spriteData;
 
-    if (ispriteAddr > 252) // out of bounds
-      break;
+    getSpriteData(i, spriteData);
 
-    int pattern = cpu->spriteMem(ispriteAddr + 1);
+    int y1 = spriteData.y + 1; // next line
 
-    int x = cpu->spriteMem(ispriteAddr + 3);
-    int y = cpu->spriteMem(ispriteAddr + 0) + 1; // next line
-
-    uchar m2 = cpu->spriteMem(ispriteAddr + 2);
-
-    uchar c1     = (m2 & 0x03) << 2;
-//  bool  behind = m2 & 0x20;
-//  bool  flipX  = m2 & 0x40;
-//  bool  flipY  = m2 & 0x80;
-
-    cart->drawSpriteChar(x, y, pattern, c1, doubleHeight);
+    cart->drawSpriteChar(spriteData.x, y1, spriteData.pattern, spriteData.color,
+                         spriteData.flipX, spriteData.flipY);
   }
 }
 #endif
 
 void
 PPU::
+drawSpriteAt(int spriteNum, int x, int y, int o)
+{
+  SpriteData spriteData;
+
+  spriteData.custom = true;
+
+  getSpriteData(spriteNum, spriteData);
+
+  spriteData.pattern += o;
+
+  int pixelLineNum = pixelLineNum_;
+
+  for (uchar iy = 0; iy < 8; ++iy) {
+    pixelLineNum_ = y + iy;
+
+    drawSpriteCharLine(x, y + iy, iy, spriteData);
+  }
+
+  pixelLineNum_ = pixelLineNum;
+}
+
+void
+PPU::
 drawSpritesOnLine(int y)
 {
-  auto *cpu = machine_->getCPU();
-
-  bool visible = cpu->isSpritesVisible();
+  bool visible = isSpritesVisible();
   if (! visible) return;
 
   //---
 
-  uchar spriteAddr   = cpu->spriteAddr();
-  bool  doubleHeight = cpu->isSpriteDoubleHeight();
+  uchar spriteHeight = (isSpriteDoubleHeight() ? 16 : 8);
 
   //---
 
@@ -516,61 +732,51 @@ drawSpritesOnLine(int y)
 
   VisibleSprites visibleSprites;
 
-  for (int i = 0; i < 64; ++i) {
-    int ispriteAddr = spriteAddr + 4*i;
+  for (int spriteNum = 0; spriteNum < 64; ++spriteNum) {
+    SpriteData spriteData;
 
-    if (ispriteAddr > 252) // out of bounds
-      break;
+    getSpriteData(spriteNum, spriteData);
 
-    int y1 = cpu->spriteMem(ispriteAddr + 0) + 1; // top
-    int y2 = (y1 + (doubleHeight ? 16 : 8));
+    int y1 = spriteData.y + 1; // top
+    int y2 = y1 + spriteHeight - 1;
 
     if (y2 < y || y1 > y)
       continue;
 
-    visibleSprites.push_back(i);
+    visibleSprites.push_back(spriteNum);
   }
 
   //----
 
-  int ns = std::min(visibleSprites.size(), 8UL);
+  spritesOverflow_ = false;
 
-  for (int i = 0; i < ns; ++i)
-    drawSpriteLine(visibleSprites[i], y);
+  int ns = visibleSprites.size();
+
+  if (ns > 8) {
+    spritesOverflow_ = true;
+
+    ns = 8;
+  }
+
+  for (const auto &spriteNum : visibleSprites)
+    drawSpriteLine(spriteNum, y);
 }
 
 void
 PPU::
-drawSpriteLine(int i, int y)
+drawSpriteLine(int spriteNum, int y)
 {
   in_ppu_ = true;
 
-  auto *cpu = machine_->getCPU();
-
   //---
 
-  uchar spriteAddr = cpu->spriteAddr();
-//bool  masked     = cpu->isSpriteMasked();
+  SpriteData spriteData;
 
-  //---
+  getSpriteData(spriteNum, spriteData);
 
-  int ispriteAddr = spriteAddr + 4*i;
+  int y1 = spriteData.y + 1; // top
 
-  //---
-
-  int pattern = cpu->spriteMem(ispriteAddr + 1);
-
-  int x  = cpu->spriteMem(ispriteAddr + 3);
-  int y1 = cpu->spriteMem(ispriteAddr + 0) + 1; // top
-
-  uchar m2 = cpu->spriteMem(ispriteAddr + 2);
-
-  uchar c1     = (m2 & 0x03) << 2;
-//bool  behind = m2 & 0x20;
-//bool  flipX  = m2 & 0x40;
-//bool  flipY  = m2 & 0x80;
-
-  drawSpriteCharLine(x, y, pattern, y - y1, c1);
+  drawSpriteCharLine(spriteData.x, y, y - y1, spriteData);
 
   in_ppu_ = false;
 }
@@ -579,32 +785,135 @@ drawSpriteLine(int i, int y)
 // bits 2 and 3 (ac)
 void
 PPU::
-drawSpriteCharLine(int x, int y, uchar c, int iby, uchar ac)
+drawSpriteCharLine(int x, int y, uchar iby, const SpriteData &spriteData)
 {
-  auto *cpu = machine_->getCPU();
+  bool doubleHeight = (! spriteData.custom ? this->isSpriteDoubleHeight() : false);
+
+  //---
 
   ushort p;
 
-  if (iby < 8)
-    p = cpu->spritePatternAddr() + c*16 + iby;
-  else
-    p = cpu->spritePatternAltAddr() + c*16 + iby - 8;
+  if (! doubleHeight) {
+    assert(iby < 8);
+
+    int iby1 = (spriteData.flipY ? 7 - iby : iby);
+
+    p = spritePatternAddr() + spriteData.pattern*16 + iby1;
+  }
+  else {
+    assert(iby < 16);
+
+    // top half (sub index 0)
+    if (iby < 8) {
+      // flip bits and sub index
+      if (spriteData.flipY) {
+        int iby1 = 7 - iby; // flip bits
+
+        p = spriteData.bank*0x1000 + (spriteData.pattern + 1)*16 + iby1;
+      }
+      else {
+        p = spriteData.bank*0x1000 + spriteData.pattern*16 + iby;
+      }
+    }
+    // bottom half (sub index 1)
+    else {
+      // flip bits and sub index
+      if (spriteData.flipY) {
+        int iby1 = 15 - iby; // flip bits and adjust range
+
+        p = spriteData.bank*0x1000 + spriteData.pattern*16 + iby1;
+      }
+      else {
+        int iby1 = iby - 8; // adjust range
+
+        p = spriteData.bank*0x1000 + (spriteData.pattern + 1)*16 + iby1;
+      }
+    }
+  }
+
+  //---
 
   uchar c1 = getVRAMByte(p    ); // color bit 0
   uchar c2 = getVRAMByte(p + 8); // color bit 1
 
   for (int ibx = 0; ibx < 8; ++ibx, ++x) {
-    if (x < 0 || x >= s_visiblePixels)
-      continue;
+    if (! spriteData.custom) {
+      if (x < 0 || x >= s_visiblePixels)
+        continue;
+
+      if (spriteMask_ && x < 8)
+        continue;
+    }
 
     // get color bits 0 and 1 from sprite pattern
-    bool b1 = (c1 & (1 << (7 - ibx)));
-    bool b2 = (c2 & (1 << (7 - ibx)));
+    int ibx1 = (spriteData.flipX ? ibx : 7 - ibx);
 
-    uchar color = spritePalette((b1 | (b2 << 1)) | ac);
+    bool b1 = (c1 & (1 << ibx1));
+    bool b2 = (c2 & (1 << ibx1));
 
-    drawColorPixel(x, y, color);
+    uchar color = spritePalette((b1 | (b2 << 1)) | spriteData.color);
+
+    if (! spriteData.custom) {
+      if (color == color0_)
+        continue;
+
+      bool hit = (linePixels_[x] != color0_);
+
+      if (hit) {
+        if (spriteData.num == 0)
+          spriteHit_ = true;
+
+        if (! spriteData.behind)
+          drawLinePixel(x, y, color);
+      }
+      else {
+        drawLinePixel(x, y, color);
+      }
+    }
+    else {
+      drawCustomColorPixel(x, y, color);
+    }
   }
+}
+
+void
+PPU::
+getSpriteData(int spriteNum, SpriteData &spriteData) const
+{
+  int ispriteAddr = 4*spriteNum;
+  assert(ispriteAddr <= 252);
+
+  spriteData.num     = spriteNum;
+  spriteData.pattern = spriteMem(ispriteAddr + 1);
+
+  // double height has pattern bank in bit 0. Pattern is even index (mask out bit 0)
+  if (! spriteData.custom && isSpriteDoubleHeight()) {
+    spriteData.bank = (spriteData.pattern & 1);
+
+    spriteData.pattern &= 0xFE;
+  }
+
+  uchar attr = spriteMem(ispriteAddr + 2);
+
+  spriteData.color  = (attr & 0x03) << 2;
+  spriteData.behind = attr & 0x20;
+  spriteData.flipX  = attr & 0x40;
+  spriteData.flipY  = attr & 0x80;
+
+  spriteData.x = spriteMem(ispriteAddr + 3);
+  spriteData.y = spriteMem(ispriteAddr + 0);
+}
+
+void
+PPU::
+drawLinePixel(int x, int y, uchar color)
+{
+  assert(x >= 0 && x < s_visiblePixels);
+  assert(y == pixelLineNum_);
+
+  linePixels_[x] = color;
+
+  drawColorPixel(x, y, color);
 }
 
 void
@@ -612,25 +921,23 @@ PPU::
 drawColorPixel(int x, int y, uchar color)
 {
   assert(x >= 0 && x < s_visiblePixels);
-  assert(y >= 0 && y < s_visibleLines);
+  assert(y >= 0 && y < s_visibleLines );
 
   int ind = y*s_visiblePixels + x;
 
-  auto *cpu = machine_->getCPU();
-
-  if (cpu->isGrayScale())
+  if (isGrayScale())
     color &= 0x30;
 
   uchar ec { 0 };
 
-  if (cpu->isEmphasizeRed  ()) ec |= 0x01;
-  if (cpu->isEmphasizeGreen()) ec |= 0x02;
-  if (cpu->isEmphasizeBlue ()) ec |= 0x04;
+  if (isEmphasizeRed  ()) ec |= 0x01;
+  if (isEmphasizeGreen()) ec |= 0x02;
+  if (isEmphasizeBlue ()) ec |= 0x04;
 
   ushort pixel = (ec << 8) | color;
 
-  if (pixels_[ind] != pixel) {
-    pixels_[ind] = pixel;
+  if (screenPixels_[ind] != pixel) {
+    screenPixels_[ind] = pixel;
 
     //---
 
@@ -640,43 +947,73 @@ drawColorPixel(int x, int y, uchar color)
   }
 }
 
+void
+PPU::
+drawCustomColorPixel(int x, int y, uchar color)
+{
+  setColor(color);
+
+  drawPixel(x, y);
+}
+
+#if 0
 bool
 PPU::
 isSprite0Hit(int y) const
 {
   // Sprite 0 hit does not trigger in any area where the background or sprites are hidden
 
-  auto *cpu = machine_->getCPU();
-
-  bool visible = cpu->isSpritesVisible();
+  bool visible = isSpritesVisible();
 
   if (! visible)
     return false;
 
-  uchar spriteAddr   = cpu->spriteAddr();
-  bool  doubleHeight = cpu->isSpriteDoubleHeight();
+  //---
 
-  int y1 = cpu->spriteMem(spriteAddr + 0) + 1; // top
-  int y2 = (y1 + (doubleHeight ? 16 : 8));
+  SpriteData spriteData;
+
+  getSpriteData(spriteNum, spriteData);
+
+  //---
+
+  bool  doubleHeight = this->isSpriteDoubleHeight();
+  uchar spriteHeight = (doubleHeight ? 16 : 8);
+
+  int y1 = spriteData.y + 1; // top
+  int y2 = y1 + spriteHeight;
 
   if (y < y1 || y > y2)
     return false;
 
-  int pattern = cpu->spriteMem(spriteAddr + 1);
+  //---
+
+  int x = spriteData.x;
 
   int iby = y - y1;
 
+  int iby1 = (spriteData.flipY ? spriteHeight - 1 - iby : iby);
+  int iby1 = (spriteData.flipY ? spriteHeight - 1 - iby : iby);
+
   ushort p;
 
-  if (iby < 8)
-    p = cpu->spritePatternAddr() + pattern*16 + iby;
-  else
-    p = cpu->spritePatternAltAddr() + pattern*16 + iby - 8;
+  if (! doubleHeight) {
+    p = spritePatternAddr() + spriteData.pattern*16 + iby1;
+  }
+  else {
+    if (iby < 8)
+      p = spritePatternAddr() + spriteData.pattern*16 + iby1;
+    else
+      p = spritePatternAltAddr() + spriteData.pattern*16 + iby1 - 8;
+  }
 
   uchar c1 = getVRAMByte(p    ); // color bit 0
   uchar c2 = getVRAMByte(p + 8); // color bit 1
 
+  // TODO: flip X ?
   for (int ibx = 0; ibx < 8; ++ibx) {
+    if (spriteMask_ && x + ibx < 8)
+      continue;
+
     // get color bits 0 and 1 from sprite pattern
     bool b1 = (c1 & (1 << (7 - ibx)));
     bool b2 = (c2 & (1 << (7 - ibx)));
@@ -687,5 +1024,6 @@ isSprite0Hit(int y) const
 
   return false;
 }
+#endif
 
 }

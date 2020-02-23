@@ -49,77 +49,25 @@ getByte(ushort addr) const
   }
   // Input/Output
   else if (addr >= 0x2000 && addr <= 0x4FFF) {
-    auto *ppu = machine_->getPPU();
-
     uchar c = 0x00;
 
-    // PPU Status Register (PPUSTATUS)
-    if      (addr == 0x2002) {
-      // read only
-      c = 0x00; // TODO: Least significant bits previously written into a PPU register
+    // PPU Control registers
+    if      (addr >= 0x2000 && addr <= 0x2007) {
+      auto *ppu = machine_->getPPU();
 
-      // TODO: Sprite overflow on bit 5
-
-      if (ppu->isSpriteHit())
-        c |= 0x40;
-
-      if (ppu->isVBlank())
-        c |= 0x80;
-
-      // reset on read
-      if (! isDebugger()) {
-      //ppu->setSpriteHit(false);
-        ppu->setVBlank   (false);
-
-        byteId_ = 0;
-      }
-
-      if (isDebugRead() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
-    }
-    // Sprite Memory Data (OAMDATA)
-    else if (addr == 0x2004) {
-      if (! isDebugger()) {
-        c = spriteMem_[spriteAddr_++];
-
-        if (isDebugRead() && ! in_ppu_)
-          std::cerr << "CPU::getSpriteByte " <<
-            std::hex << addr << " " << std::hex << int(c) << "\n";
-      }
-      else
-        c = C6502::getByte(addr);
-    }
-    // PPU Memory Data (PPUDATA)
-    else if (addr == 0x2007) {
-      if (! isDebugger()) {
-        if (ppuAddr_ < 0x3F00) {
-          c = ppuBuffer_;
-
-          ppuBuffer_ = ppu->getByte(ppuAddr_);
-        }
-        else {
-          c = ppu->getByte(ppuAddr_);
-
-          ppuBuffer_ = ppu->getByte(ppuAddr_); // TODO: mirrored nametable data ?
-        }
-
-        ++ppuAddr_;
-      }
-      else
-        c = ppuBuffer_;
+      c = ppu->getControlByte(addr);
     }
     // Joystick 1 + Strobe
     else if (addr == 0x4016) {
       if (! isDebugger()) {
+        auto *ppu = machine_->getPPU();
+
         c = 0x40;
 
         if (ppu->isKey1(keyNum1_))
           c |= 0x01;
 
         keyNum1_ = ((keyNum1_ + 1) & 0x07);
-
-        if (isDebugRead() && ! in_ppu_)
-          std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
       }
       else
         c = C6502::getByte(addr);
@@ -129,6 +77,8 @@ getByte(ushort addr) const
       // Not connected
       if (! isDebugger()) {
 #if 0
+        auto *ppu = machine_->getPPU();
+
         c = 0x40;
 
         if (ppu->isKey2(keyNum2_))
@@ -137,7 +87,8 @@ getByte(ushort addr) const
         keyNum2_ = ((keyNum2_ + 1) & 0x07);
 
         if (isDebugRead() && ! in_ppu_)
-          std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
+          std::cerr << "CPU::getPPUByte " <<
+             std::hex << addr << " " << std::hex << int(c) << "\n";
 #else
         c = 0x42;
 #endif
@@ -147,10 +98,11 @@ getByte(ushort addr) const
     }
     else {
       c = C6502::getByte(addr);
-
-      if (isDebugRead() && ! in_ppu_ && ! isDebugger())
-        std::cerr << "CPU::getPPUByte " << std::hex << addr << " " << std::hex << int(c) << "\n";
     }
+
+    if (isDebugRead() && ! in_ppu_ && ! isDebugger())
+      std::cerr << "CPU::getPPUByte " <<
+        std::hex << addr << " " << std::hex << int(c) << "\n";
 
     return c;
   }
@@ -218,91 +170,55 @@ setByte(ushort addr, uchar c)
   }
   // Input/Output
   else if (addr >= 0x2000 && addr <= 0x4FFF) {
-    auto *ppu = machine_->getPPU();
-
     if (isDebugWrite() && ! isDebugger())
       std::cerr << "CPU::setByte (Input/Output) " <<
         std::hex << addr << " " << std::hex << int(c) << "\n";
 
-    // PPU Control Register 1 (PPUCTRL)
-    if      (addr == 0x2000) {
-      nameTable_          = (c & 0x3); // TODO: mirroring ?
-      nameTableAddr_      = 0x2000 + nameTable_*0x400; // TODO: mirroring ?
-      verticalWrite_      = (c & 0x04);
-      spritePatternAddr_  = (c & 0x08 ? 0x1000 : 0x0000);
-      screenPatternAddr_  = (c & 0x10 ? 0x1000 : 0x0000);
-      spriteDoubleHeight_ = (c & 0x20);
-//    spriteInterrupt_    = (c & 0x40); // TODO: wrong
-      blankInterrupt_     = (c & 0x80);
+    // PPU Control registers
+    if      (addr >= 0x2000 && addr <= 0x2007) {
+      auto *ppu = machine_->getPPU();
 
-      spritePatternAltAddr_ = (spritePatternAddr_ == 0x1000 ? 0x0000 : 0x100);
+      ppu->setControlByte(addr, c);
     }
-    // PPU Control Register 2 (PPUMASK)
-    else if (addr == 0x2001) {
-      grayScale_      = (c & 0x01);
-      imageMask_      = (c & 0x02); // TODO
-      spriteMask_     = (c & 0x04); // TODO
-      screenVisible_  = (c & 0x08);
-      spritesVisible_ = (c & 0x10);
-      emphasizeRed_   = (c & 0x20);
-      emphasizeGreen_ = (c & 0x40);
-      emphasizeBlue_  = (c & 0x80);
-    }
-    // PPU Status Register (PPUSTATUS)
-    else if (addr == 0x2002) {
-      // read only
-    }
-    // Sprite Memory Address (OAMADDR)
-    else if (addr == 0x2003) {
-      setSpriteAddr(c);
-    }
-    // Sprite Memory Data (OAMDATA)
-    else if (addr == 0x2004) {
-      spriteMem_[spriteAddr_++] = c;
-    }
-    // Background Scroll (PPUSCROLL)
-    // TODO: shares internal register with PPUADDR ?
-    else if (addr == 0x2005) {
-      // ignore vertical scroll value if >= 240
-      if (byteId_ != 1 || c < 0xF0)
-        scrollHV_[byteId_] = c;
-
-      byteId_ = 1 - byteId_;
-    }
-    // PPU Memory Address (PPUADDR)
-    else if (addr == 0x2006) {
-      ppuAddrHL_[byteId_] = c;
-
-      byteId_ = 1 - byteId_;
-
-      ppuAddr_ = (ppuAddrHL_[0] << 8) | ppuAddrHL_[1];
-      ppuAddr_ &= 0x3FFF;
-    }
-    // PPU Memory Data (PPUDATA)
-    else if (addr == 0x2007) {
-      ppu->setByte(ppuAddr_, c);
-
-      if (verticalWrite_)
-        ppuAddr_ += 32;
-      else
-        ++ppuAddr_;
-    }
-
-    //---
 
     else if (addr >= 0x3F00 && addr <= 0x3FFF) {
       // $3F00 and $3F10 locations in VRAM mirror each other
     }
 
-    //---
-
     // Sound
-    if      (addr >= 0x4000 && addr <= 0x4013) {
+    else if (addr >= 0x4000 && addr <= 0x4013) {
       // TODO
+#if 0
+      if      (addr == 0x4000) sq1Vol_    = c;
+      else if (addr == 0x4001) sq1Sweep_  = c;
+      else if (addr == 0x4002) sq1Lo_     = c;
+      else if (addr == 0x4003) sq1Hi_     = c;
+      else if (addr == 0x4004) sq2Vol_    = c;
+      else if (addr == 0x4005) sq2Sweep_  = c;
+      else if (addr == 0x4006) sq2Lo_     = c;
+      else if (addr == 0x4007) sq2Hi_     = c;
+      else if (addr == 0x4008) triLinear_ = c;
+//    else if (addr == 0x4009) { } // unused
+      else if (addr == 0x400a) triLo_     = c;
+      else if (addr == 0x400b) triHi_     = c;
+      else if (addr == 0x400c) noiseVol_  = c;
+//    else if (addr == 0x400d) { } // unused
+      else if (addr == 0x400e) noiseLo_   = c;
+      else if (addr == 0x400f) noiseHi_   = c;
+      else if (addr == 0x4010) dmcFreq_   = c;
+      else if (addr == 0x4011) dmcRaw_    = c;
+      else if (addr == 0x4012) dmcStart_  = c;
+      else if (addr == 0x4013) dmcLen_    = c;
+#endif
+      if (! isDebugger())
+        std::cerr << "CPU::setByte (Sound) " <<
+          std::hex << addr << " " << std::hex << int(c) << "\n";
     }
     // DMA Access to the Sprite Memory (OAMDMA)
     else if (addr == 0x4014) {
-      C6502::memget(c << 8, &spriteMem_[0], 0x100);
+      auto *ppu = machine_->getPPU();
+
+      ppu->copySpriteMem(c);
 
       tick(255); tick(255); tick(3); // 513 or 514 ?
     }
@@ -326,6 +242,9 @@ setByte(ushort addr, uchar c)
       // TODO
       if (c == 0)
         keyNum2_ = 0;
+    }
+    else if (addr >= 0x4018 && addr <= 0x401F) {
+      // APU and I/O functionality that is normally disabled.
     }
 
     signalNesChanged();

@@ -16,9 +16,15 @@ class QCartridge : public QWidget, public Cartridge {
  public:
   QCartridge(QMachine *qmachine);
 
+  int scale() const { return scale_; }
+
+  int border() const { return border_; }
+
   void updateState() override;
 
   void paintEvent(QPaintEvent *) override;
+
+  void mousePressEvent(QMouseEvent *e) override;
 
   void setColor(uchar c) override;
   void drawPixel(int x, int y) override;

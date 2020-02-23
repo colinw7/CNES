@@ -35,6 +35,8 @@ class QPPU : public QWidget, public PPU {
 
   void memChanged(ushort addr, ushort len) override { emit memChangedSignal(addr, len); }
 
+  void spritesChanged() override { emit spritesChangedSignal(); }
+
   bool isKey1(int n) override;
   bool isKey2(int n) override;
 
@@ -46,10 +48,18 @@ class QPPU : public QWidget, public PPU {
   void keyPressEvent  (QKeyEvent *e) override;
   void keyReleaseEvent(QKeyEvent *e) override;
 
+  void mousePressEvent(QMouseEvent *e) override;
+
+  void contextMenuEvent(QContextMenuEvent *e) override;
+
   //---
 
   void setColor(uchar c) override;
   void drawPixel(int x, int y) override;
+
+  //---
+
+  void drawSprites(QPainter *painter, bool alt);
 
   //---
 
@@ -58,8 +68,14 @@ class QPPU : public QWidget, public PPU {
  signals:
   void memChangedSignal(ushort addr, ushort len);
 
+  void spritesChangedSignal();
+
  private slots:
   void drawLineSlot();
+
+  void showNameTable(bool);
+  void showSprites(bool);
+  void showDebug(bool);
 
  private:
   void updateImage();

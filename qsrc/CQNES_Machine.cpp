@@ -2,6 +2,7 @@
 #include <CQNES_CPU.h>
 #include <CQNES_PPU.h>
 #include <CQNES_Cartridge.h>
+#include <CQNES_Sprites.h>
 
 namespace CNES {
 
@@ -19,6 +20,8 @@ init()
   cpu_  = qcpu_  = new QCPU      (this);
   ppu_  = qppu_  = new QPPU      (this);
   cart_ = qcart_ = new QCartridge(this);
+
+  sprites_ = new QPPU_Sprites(qppu_);
 
 //connect(qcpu_, SIGNAL(registerChangedSignal()), this, SIGNAL(registerChangedSignal()));
 

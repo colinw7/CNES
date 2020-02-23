@@ -1,11 +1,16 @@
 #include <CQNES_PPU.h>
 #include <CQNES_CPU.h>
 #include <CQNES_Machine.h>
+#include <CQNES_Cartridge.h>
+#include <CQNES_Sprites.h>
+#include <CStrUtil.h>
 
 #include <QTimer>
 #include <QImage>
 #include <QPainter>
 #include <QKeyEvent>
+#include <QMenu>
+#include <QContextMenuEvent>
 
 namespace CNES {
 
@@ -13,9 +18,17 @@ QPPU::
 QPPU(QMachine *qmachine) :
  PPU(qmachine), qmachine_(qmachine)
 {
+  setWindowTitle("Game");
+
   setObjectName("PPU");
 
+  //---
+
   setFocusPolicy(Qt::StrongFocus);
+
+  setContextMenuPolicy(Qt::DefaultContextMenu);
+
+  //---
 
   setScale(4);
 
@@ -202,6 +215,83 @@ isKey2(int /*n*/)
 
 void
 QPPU::
+mousePressEvent(QMouseEvent *e)
+{
+  int x = ((e->x() - margin())/scale() - s_leftMargin)/8;
+  int y = ((e->y() - margin())/scale() - s_topMargin )/8;
+
+  int xc = s_hChars;
+  int yc = s_vChars;
+
+  x = std::min(std::max(x, 0), xc);
+  y = std::min(std::max(y, 0), yc);
+
+  uchar c  = calcNameTableTile(y, x);
+
+  std::cerr << x << " " << y << " " << CStrUtil::toHexString(c, 2) << "\n";
+}
+
+void
+QPPU::
+contextMenuEvent(QContextMenuEvent *e)
+{
+  auto *menu = new QMenu;
+
+  //---
+
+  QAction *nameTableAction = menu->addAction("Show Name Table");
+
+  nameTableAction->setCheckable(true);
+  nameTableAction->setChecked  (qmachine_->getQCart()->isVisible());
+
+  connect(nameTableAction, SIGNAL(triggered(bool)), this, SLOT(showNameTable(bool)));
+
+  QAction *spritesAction = menu->addAction("Show Sprites");
+
+  spritesAction->setCheckable(true);
+  spritesAction->setChecked  (qmachine_->getSprites()->isVisible());
+
+  connect(spritesAction, SIGNAL(triggered(bool)), this, SLOT(showSprites(bool)));
+
+  if (qmachine_->dbgWidget()) {
+    QAction *debugAction = menu->addAction("Show Debug");
+
+    debugAction->setCheckable(true);
+    debugAction->setChecked  (qmachine_->dbgWidget()->isVisible());
+
+    connect(debugAction, SIGNAL(triggered(bool)), this, SLOT(showDebug(bool)));
+  }
+
+  //---
+
+  (void) menu->exec(e->globalPos());
+
+  delete menu;
+}
+
+void
+QPPU::
+showNameTable(bool show)
+{
+  qmachine_->getQCart()->setVisible(show);
+}
+
+void
+QPPU::
+showSprites(bool show)
+{
+  qmachine_->getSprites()->setVisible(show);
+}
+
+void
+QPPU::
+showDebug(bool show)
+{
+  qmachine_->dbgWidget()->setVisible(show);
+}
+
+void
+QPPU::
 setColor(uchar c)
 {
   static QColor colors[64] {
@@ -226,17 +316,15 @@ setColor(uchar c)
     QColor(160, 214, 228), QColor(160, 162, 160), QColor(  0,   0,   0), QColor(  0,   0,   0),
   };
 
-  auto *cpu = machine_->getCPU();
-
   QColor color = colors[c & 0x3F];
 
-  if (cpu->isEmphasizeRed() || cpu->isEmphasizeGreen() || cpu->isEmphasizeBlue()) {
+  if (isEmphasizeRed() || isEmphasizeGreen() || isEmphasizeBlue()) {
     QColor color1 = color.lighter();
     QColor color2 = color.darker ();
 
-    color = QColor(cpu->isEmphasizeRed  () ? color1.red  () : color2.red  (),
-                   cpu->isEmphasizeGreen() ? color1.green() : color2.green(),
-                   cpu->isEmphasizeBlue () ? color1.blue () : color2.blue ());
+    color = QColor(isEmphasizeRed  () ? color1.red  () : color2.red  (),
+                   isEmphasizeGreen() ? color1.green() : color2.green(),
+                   isEmphasizeBlue () ? color1.blue () : color2.blue ());
   }
 
   ipainter_->setPen(color);
@@ -256,6 +344,36 @@ drawPixel(int x, int y)
       ipainter_->drawPoint(x1 + isx, y1 + isy);
     }
   }
+}
+
+void
+QPPU::
+drawSprites(QPainter *painter, bool alt)
+{
+  QPainter *ipainter1 = ipainter_;
+
+  ipainter_ = painter;
+
+  ushort spritePatternAddr = spritePatternAddr_;
+
+  spritePatternAddr_ = (alt ? 0x1000 : 0x0000);
+
+  int o = (alt ? 1 : 0);
+
+  int w = 8;
+  int h = 8;
+
+  for (int iy = 0; iy < 8; ++iy) {
+    for (int ix = 0; ix < 8; ++ix) {
+      int i = iy*8 + ix;
+
+      drawSpriteAt(i, ix*w, iy*h, o);
+    }
+  }
+
+  spritePatternAddr_ = spritePatternAddr;
+
+  ipainter_ = ipainter1;
 }
 
 QSize

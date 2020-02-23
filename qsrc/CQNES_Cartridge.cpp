@@ -1,7 +1,11 @@
 #include <CQNES_Cartridge.h>
 #include <CQNES_Machine.h>
+#include <CStrUtil.h>
 
 #include <QPainter>
+#include <QMouseEvent>
+
+#include <iostream>
 #include <cmath>
 
 namespace CNES {
@@ -10,7 +14,11 @@ QCartridge::
 QCartridge(QMachine *qmachine) :
  Cartridge(qmachine), qmachine_(qmachine)
 {
-  setObjectName("Cartridge");
+  setWindowTitle("Cartridge");
+
+  setObjectName("cartridge");
+
+  //---
 
   updateState();
 }
@@ -44,6 +52,33 @@ paintEvent(QPaintEvent *)
   updateState();
 
   drawTiles();
+}
+
+void
+QCartridge::
+mousePressEvent(QMouseEvent *e)
+{
+  int tw = 16*8*scale() + border()*1.5;
+  int th = 16*8*scale() + border()*1.5;
+
+  int itx = e->x()/tw;
+  int ity = e->y()/th;
+
+  int ix = (e->x() - itx*tw)/(scale()*8);
+  int iy = (e->y() - ity*th)/(scale()*8);
+
+  itx = std::min(std::max(itx, 0), ntx_);
+  ity = std::min(std::max(ity, 0), nty_);
+
+  ix = std::min(std::max(ix, 0), 16);
+  iy = std::min(std::max(iy, 0), 16);
+
+  int it = ity*ntx_ + itx;
+
+  int ia = iy*16 + ix;
+
+  std::cerr << "Tile Set " << it << " " << ix << " " << iy <<
+               "(" << CStrUtil::toHexString(ia, 2) << ")\n";
 }
 
 void
@@ -90,11 +125,11 @@ drawPixel(int x, int y)
   int itx = currentTile_ % ntx_;
   int ity = currentTile_ / ntx_;
 
-  int x1 = (x + itx*tileWidth )*scale_ + (itx + 1)*border_;
-  int y1 = (y + ity*tileHeight)*scale_ + (ity + 1)*border_;
+  int x1 = (x + itx*tileWidth )*scale() + (itx + 1)*border();
+  int y1 = (y + ity*tileHeight)*scale() + (ity + 1)*border();
 
-  for (int isy = 0; isy < scale_; ++isy) {
-    for (int isx = 0; isx < scale_; ++isx) {
+  for (int isy = 0; isy < scale(); ++isy) {
+    for (int isx = 0; isx < scale(); ++isx) {
       painter_->drawPoint(x1 + isx, y1 + isy);
     }
   }
@@ -104,7 +139,8 @@ QSize
 QCartridge::
 sizeHint() const
 {
-  return QSize(ntx_*16*8*scale_ + (ntx_ + 1)*border_, nty_*16*8*scale_ + (nty_ + 1)*2*border_);
+  return QSize(ntx_*16*8*scale() + (ntx_ + 1)*2*border(),
+               nty_*16*8*scale() + (nty_ + 1)*2*border());
 }
 
 }

@@ -27,6 +27,9 @@ class CQNESDbg : public CQ6502Dbg {
   void setTraced(bool traced) override;
 
  private slots:
+  void nesChrLSlot(unsigned int page);
+  void nesChrHSlot(unsigned int page);
+
   void nesDebugReadSlot (int state);
   void nesDebugWriteSlot(int state);
 
@@ -93,6 +96,9 @@ class CQNESDbg : public CQ6502Dbg {
     QCheckBox*     mirroringCheck { nullptr };
     CQ6502HexEdit* prgRamSizeEdit { nullptr };
     CQ6502HexEdit* mapperEdit     { nullptr };
+
+    CQ6502HexEdit* chrLEdit       { nullptr };
+    CQ6502HexEdit* chrHEdit       { nullptr };
   };
 
   struct PPUMemData {

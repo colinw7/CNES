@@ -3,6 +3,7 @@
 #include <CQNES_CPU.h>
 #include <CQNES_PPU.h>
 #include <CQNES_Cartridge.h>
+#include <CQNES_Sprites.h>
 #include <CQApp.h>
 
 using namespace CNES;
@@ -50,20 +51,24 @@ main(int argc, char **argv)
       std::cerr << "Failed to load '" << arg << "'\n";
   }
 
-  machine->getQPPU ()->show();
-  machine->getQCart()->show();
+  machine->getQPPU()->show();
+
+//machine->getQCart  ()->show();
+//machine->getSprites()->show();
 
   machine->getCPU()->resetSystem();
 
   //---
 
-  CQNESDbg dbg(machine);
+  CQNESDbg *dbg = new CQNESDbg(machine);
 
-  dbg.init();
+  dbg->init();
 
-  dbg.setFixedFont(QFont("Courier New", 16));
+  dbg->setFixedFont(QFont("Courier New", 16));
 
-  dbg.show();
+  machine->setDbgWidget(dbg);
+
+  //dbg->show();
 
   return app.exec();
 }

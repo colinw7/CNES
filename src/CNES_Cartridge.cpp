@@ -206,6 +206,7 @@ loadNES(const std::string &filename)
   return true;
 }
 
+// Cartridge Lower ROM (mapped to $8000-$BFFF)
 bool
 Cartridge::
 getLowerROMByte(ushort addr, uchar &c) const
@@ -226,6 +227,7 @@ getLowerROMByte(ushort addr, uchar &c) const
   return true;
 }
 
+// Cartridge Upper ROM (mapped to $C000-$FFFF)
 bool
 Cartridge::
 getUpperROMByte(ushort addr, uchar &c) const
@@ -290,40 +292,51 @@ setROMByte(ushort addr, uchar c)
 
         //---
 
-        // 0: one-screen, lower bank
-        // 1: one-screen, upper bank
-        // 2: vertical
-        // 3: horizontal
+        // 0: one-screen, lower bank (nametable 0)
+        // 1: one-screen, upper bank (nametable 1)
+        // 2: vertical mirror
+        // 3: horizontal mirror
         mapper1Data_.mirror = mapper1Data_.regData[0] & 0x03;
 
-        // PRG ROM bank mode
-        //  0, 1: switch 32 KB at $8000,
-        //        ignoring low bit of bank number
-        //  2:    fix first bank at $8000 and
-        //        switch 16 KB bank at $C000
-        //  3:    fix last bank at $C000 and
-        //        switch 16 KB bank at $8000
-        mapper1Data_.romMode   = mapper1Data_.regData[0] & 0x0C;
+        // PRG ROM swap bank
+        //  0 - Bank 8000-BFFFh is fixed, while C000-FFFFh is swappable
+        //  1 - Bank C000-FFFFh is fixed, while 8000-FFFFh is swappable. (power-on default)
+        mapper1Data_.romBank = (mapper1Data_.regData[0] & 0x04) >> 2;
+
+        // PRG Bank size.
+        //  0 - Swappable bank is 32K in size.
+        //  1 - Swappable bank is 16K in size.
+        mapper1Data_.romSize = (mapper1Data_.regData[0] & 0x08) >> 3;
 
         // CHR ROM bank mode
-        //  0: switch 8 KB at a time
-        //  1: switch two separate 4 KB banks
-        mapper1Data_.vromMode  = mapper1Data_.regData[0] & 0x10;
+        //  0: Single 8K bank in CHR space
+        //  1: Two 4K banks in CHR space
+        mapper1Data_.vromMode = (mapper1Data_.regData[0] & 0x10) >> 4;
 
-        // Select 4 KB or 8 KB CHR bank at PPU $0000
-        // (low bit ignored in 8 KB mode)
-        mapper1Data_.vromBank0 = mapper1Data_.regData[1] & 0x1F;
+        // CHR bank 0
+        // If in 4K bank mode, this selects a 4K bank at 0000h on the PPU space.
+        // If in 8K bank mode, this selects a full 8K bank at 0000h on the PPU space.
+        // Note: If using 8K banks, the lowest bit (D0) is NOT USED.
+        // Note: some of these bits are commondeered for different cart boards
+        // (explained on the individual mapper pages).
+        mapper1Data_.vromBank[0] = mapper1Data_.regData[1] & 0x1F;
 
-        // Select 4 KB CHR bank at PPU $1000
-        // (ignored in 8 KB mode)
-        mapper1Data_.vromBank1 = mapper1Data_.regData[2] & 0x1F;
+        // CHR bank 1
+        // If in 4K bank mode, this selects a 4K bank at 1000h on the PPU space.
+        // If in 8K bank mode, this register does nothing.
+        mapper1Data_.vromBank[1] = mapper1Data_.regData[2] & 0x1F;
 
-        // Select 16 KB PRG ROM bank
-        // (low bit ignored in 32 KB mode)
-        mapper1Data_.romPage   = mapper1Data_.regData[3] & 0x0F;
+        // PRG bank.
+        // . If in 32K mode, this selects a full 32K bank in the PRG space.
+	//   Only the upper 3 bits are used then.
+        // . If in 16K mode, this selects a 16K bank in either 8000-BFFFh
+	//   or C000-FFFFh depending on the state of the "H" bit in register 0.
+        mapper1Data_.romPage = mapper1Data_.regData[3] & 0x0F;
 
         // PRG RAM chip enable
-        // (0: enabled; 1: disabled; ignored on MMC1A)
+        //  0- WRAM is enabled and can be read/written to.
+        //  1- WRAM is disabled and cannot be accessed at all. Reading results in open bus.
+        //     (low bit ignored in 32 KB mode)
         mapper1Data_.ramEnable = mapper1Data_.regData[3] & 0x10;
 
         if (isDebugWrite()) {
@@ -374,19 +387,53 @@ getVRAMByte(ushort addr, uchar &c) const
 
   // Pattern Table 0
   if      (addr < 0x1000) {
-    if (addr >= chrSize_)
-      return false;
+    if (chrLPage_ >= 0) {
+      addr += chrLPage_*0x0400; // 1K
 
-    c = chrRomData_[addr];
+      if (addr >= chrSize_)
+        return false;
+
+      c = chrRomData_[addr];
+    }
+    else {
+      if (mapper_ == 1) {
+        if (mapper1Data_.mirror == 2)
+          addr += mapper1Data_.vromBank[1]*0x1000;
+        else
+          addr += mapper1Data_.vromBank[0]*0x1000;
+      }
+
+      if (addr >= chrSize_)
+        return false;
+
+      c = chrRomData_[addr];
+    }
   }
   // Pattern Table 1
   else if (addr < 0x2000) {
-    addr += 0x2000;
+    ushort addr1 = addr - 0x1000;
 
-    if (addr >= chrSize_)
-      return false;
+    if (chrHPage_ >= 0) {
+      addr1 += chrHPage_*0x0400; // 1K
 
-    c = chrRomData_[addr];
+      if (addr1 >= chrSize_)
+        return false;
+
+      c = chrRomData_[addr1];
+    }
+    else {
+      if (mapper_ == 1) {
+        if (mapper1Data_.mirror == 3)
+          addr1 += mapper1Data_.vromBank[0]*0x1000;
+        else
+          addr1 += mapper1Data_.vromBank[1]*0x1000;
+      }
+
+      if (addr1 >= chrSize_)
+        return false;
+
+      c = chrRomData_[addr1];
+    }
   }
 
   return true;
@@ -417,9 +464,6 @@ Cartridge::
 drawTile(int it)
 {
   currentTile_ = it;
-
-//ushort tileWidth  = 16*8;
-//ushort tileHeight = 16*8;
 
   int ic = 0;
 
@@ -456,127 +500,5 @@ drawTileChar(int it, int ic, int x, int y)
     }
   }
 }
-
-#if 0
-void
-Cartridge::
-drawPPUChar(int x, int y, uchar c)
-{
-  for (int iby = 0; iby < 8; ++iby)
-    drawPPUCharLine(x, y, c, iby, 0);
-}
-#endif
-
-#if 0
-void
-Cartridge::
-drawPPUCharLine(int x, int y, uchar c, int iby, uchar ac)
-{
-  auto cpu = machine_->getCPU();
-  auto ppu = machine_->getPPU();
-
-//ushort tileSize = 16*16*8*2;
-
-  ushort p = cpu->screenPatternAddr() + c*16 + iby;
-
-  uchar c1; getVRAMByte(p    , c1); // color bit 0
-  uchar c2; getVRAMByte(p + 8, c2); // color bit 1
-
-  for (int ibx = 0; ibx < 8; ++ibx) {
-    bool b1 = (c1 & (1 << (7 - ibx)));
-    bool b2 = (c2 & (1 << (7 - ibx)));
-
-    uchar color = ppu->palette((b1 | (b2 << 1)) | ac);
-
-    ppu->setColor(color);
-
-    ppu->drawPixel(x + ibx, y + iby);
-  }
-}
-#endif
-
-#if 0
-void
-Cartridge::
-drawSpriteChar(int x, int y, uchar c, bool doubleHeight)
-{
-  auto cpu = machine_->getCPU();
-  auto ppu = machine_->getPPU();
-
-  for (int iby = 0; iby < 8; ++iby) {
-    ushort p = cpu->spritePatternAddr() + c*16 + iby;
-
-    uchar c1; getVRAMByte(p    , c1);
-    uchar c2; getVRAMByte(p + 8, c2);
-
-    for (int ibx = 0; ibx < 8; ++ibx) {
-      bool b1 = (c1 & (1 << (7 - ibx)));
-      bool b2 = (c2 & (1 << (7 - ibx)));
-
-      ppu->setColor(b1 + 2*b2);
-
-      ppu->drawPixel(x + ibx, y + iby);
-    }
-  }
-
-  if (doubleHeight) {
-    y += 8;
-
-    for (int iby = 0; iby < 8; ++iby) {
-      ushort p = cpu->spritePatternAltAddr() + c*16 + iby;
-
-      uchar c1; getVRAMByte(p    , c1);
-      uchar c2; getVRAMByte(p + 8, c2);
-
-      for (int ibx = 0; ibx < 8; ++ibx) {
-        bool b1 = (c1 & (1 << (7 - ibx)));
-        bool b2 = (c2 & (1 << (7 - ibx)));
-
-        ppu->setColor(b1 + 2*b2);
-
-        ppu->drawPixel(x + ibx, y + iby);
-      }
-    }
-  }
-}
-#endif
-
-#if 0
-// draw nth sprite line (iby) for sprite at (x, y) and character (c) and
-// bits 2 and 3 (ac)
-void
-Cartridge::
-drawSpriteCharLine(int x, int y, uchar c, int iby, uchar ac)
-{
-  auto cpu = machine_->getCPU();
-  auto ppu = machine_->getPPU();
-
-  ushort p;
-
-  if (iby < 8)
-    p = cpu->spritePatternAddr() + c*16 + iby;
-  else
-    p = cpu->spritePatternAltAddr() + c*16 + iby - 8;
-
-  uchar c1; getVRAMByte(p    , c1);
-  uchar c2; getVRAMByte(p + 8, c2);
-
-  int x1 = x;
-  int y1 = y + iby;
-
-  for (int ibx = 0; ibx < 8; ++ibx, ++x1) {
-    // get color bits 0 and 1 from sprite pattern
-    bool b1 = (c1 & (1 << (7 - ibx)));
-    bool b2 = (c2 & (1 << (7 - ibx)));
-
-    uchar color = ppu->spritePalette((b1 | (b2 << 1)) | ac);
-
-    ppu->setColor(color);
-
-    if (x1 >= 0 && x1 < 256)
-      ppu->drawPixel(x1, y1);
-  }
-}
-#endif
 
 }
