@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'CQNES_PPU.h'
 **
-** Created by: The Qt Meta Object Compiler version 67 (Qt 5.9.5)
+** Created by: The Qt Meta Object Compiler version 67 (Qt 5.12.8)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
@@ -12,7 +12,7 @@
 #if !defined(Q_MOC_OUTPUT_REVISION)
 #error "The header file 'CQNES_PPU.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 67
-#error "This file was generated using the moc from 5.9.5. It"
+#error "This file was generated using the moc from 5.12.8. It"
 #error "cannot be used with the include files from this version of Qt."
 #error "(The moc has changed too much.)"
 #endif
@@ -56,7 +56,7 @@ QT_MOC_LITERAL(12, 121, 12) // "showScanLine"
 static const uint qt_meta_data_CNES__QPPU[] = {
 
  // content:
-       7,       // revision
+       8,       // revision
        0,       // classname
        0,    0, // classinfo
        6,   14, // methods
@@ -97,7 +97,7 @@ static const uint qt_meta_data_CNES__QPPU[] = {
 void CNES::QPPU::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
 {
     if (_c == QMetaObject::InvokeMetaMethod) {
-        QPPU *_t = static_cast<QPPU *>(_o);
+        auto *_t = static_cast<QPPU *>(_o);
         Q_UNUSED(_t)
         switch (_id) {
         case 0: _t->memChangedSignal((*reinterpret_cast< ushort(*)>(_a[1])),(*reinterpret_cast< ushort(*)>(_a[2]))); break;
@@ -111,14 +111,14 @@ void CNES::QPPU::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
     } else if (_c == QMetaObject::IndexOfMethod) {
         int *result = reinterpret_cast<int *>(_a[0]);
         {
-            typedef void (QPPU::*_t)(ushort , ushort );
+            using _t = void (QPPU::*)(ushort , ushort );
             if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&QPPU::memChangedSignal)) {
                 *result = 0;
                 return;
             }
         }
         {
-            typedef void (QPPU::*_t)();
+            using _t = void (QPPU::*)();
             if (*reinterpret_cast<_t *>(_a[1]) == static_cast<_t>(&QPPU::spritesChangedSignal)) {
                 *result = 1;
                 return;
@@ -127,7 +127,7 @@ void CNES::QPPU::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
     }
 #ifndef QT_NO_PROPERTIES
     else if (_c == QMetaObject::ReadProperty) {
-        QPPU *_t = static_cast<QPPU *>(_o);
+        auto *_t = static_cast<QPPU *>(_o);
         Q_UNUSED(_t)
         void *_v = _a[0];
         switch (_id) {
@@ -137,7 +137,7 @@ void CNES::QPPU::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         default: break;
         }
     } else if (_c == QMetaObject::WriteProperty) {
-        QPPU *_t = static_cast<QPPU *>(_o);
+        auto *_t = static_cast<QPPU *>(_o);
         Q_UNUSED(_t)
         void *_v = _a[0];
         switch (_id) {
@@ -151,10 +151,14 @@ void CNES::QPPU::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
 #endif // QT_NO_PROPERTIES
 }
 
-const QMetaObject CNES::QPPU::staticMetaObject = {
-    { &QWidget::staticMetaObject, qt_meta_stringdata_CNES__QPPU.data,
-      qt_meta_data_CNES__QPPU,  qt_static_metacall, nullptr, nullptr}
-};
+QT_INIT_METAOBJECT const QMetaObject CNES::QPPU::staticMetaObject = { {
+    &QWidget::staticMetaObject,
+    qt_meta_stringdata_CNES__QPPU.data,
+    qt_meta_data_CNES__QPPU,
+    qt_static_metacall,
+    nullptr,
+    nullptr
+} };
 
 
 const QMetaObject *CNES::QPPU::metaObject() const
@@ -187,7 +191,7 @@ int CNES::QPPU::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
         _id -= 6;
     }
 #ifndef QT_NO_PROPERTIES
-   else if (_c == QMetaObject::ReadProperty || _c == QMetaObject::WriteProperty
+    else if (_c == QMetaObject::ReadProperty || _c == QMetaObject::WriteProperty
             || _c == QMetaObject::ResetProperty || _c == QMetaObject::RegisterPropertyMetaType) {
         qt_static_metacall(this, _c, _id, _a);
         _id -= 3;
