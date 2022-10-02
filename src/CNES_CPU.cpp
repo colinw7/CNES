@@ -38,7 +38,7 @@ CPU::
 getByte(ushort addr) const
 {
   // 2kB Internal RAM, mirrored 4 times
-  if      (addr >= 0x0000 && addr <= 0x1FFF) {
+  if      (addr <= 0x1FFF) {
     uchar c = C6502::getByte(addr & 0x07FF);
 
     if (isDebugRead() && ! in_ppu_ && ! isDebugger())
@@ -139,7 +139,7 @@ getByte(ushort addr) const
     return c;
   }
   // Upper Bank of Cartridge ROM (16k)
-  else if (addr >= 0xC000 && addr <= 0xFFFF) {
+  else if (addr >= 0xC000) {
     auto *cart = machine_->getCart();
 
     uchar c;
@@ -161,7 +161,7 @@ CPU::
 setByte(ushort addr, uchar c)
 {
   // 2kB Internal RAM, mirrored 4 times
-  if      (addr >= 0x0000 && addr <= 0x1FFF) {
+  if      (addr <= 0x1FFF) {
     if (isDebugWrite() && ! isDebugger())
       std::cerr << "CPU::setByte (Internal RAM) " <<
         std::hex << addr << " " << std::hex << int(c) << "\n";
@@ -269,7 +269,7 @@ setByte(ushort addr, uchar c)
       return;
   }
   // Upper Bank of Cartridge ROM
-  else if (addr >= 0xC000 && addr <= 0xFFFF) {
+  else if (addr >= 0xC000) {
     auto *cart = machine_->getCart();
 
     if (cart->setROMByte(addr - 0xC000, c))

@@ -30,7 +30,7 @@ updateState()
   int nt = numTiles();
 
   if (nt > 1) {
-    ntx_ = (int) std::round(std::sqrt(nt));
+    ntx_ = int(std::round(std::sqrt(nt)));
     nty_ = (nt + ntx_ - 1)/ntx_;
   }
   else {
